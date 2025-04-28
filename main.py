@@ -1,27 +1,78 @@
-from fastapi import FastAPI
-import mysql.connector
+from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, RedirectResponse
+from models import Store, Staff
+from database import SessionLocal, engine
+from sqlalchemy.orm import Session
+from schemas import LoginRequest
+from passlib.context import CryptContext
+import dotenv
+import os
+from starlette.middleware.sessions import SessionMiddleware
+from fastapi.staticfiles import StaticFiles
+
+dotenv.load_dotenv()
+
+templates = Jinja2Templates(directory="templates")
 
 app = FastAPI()
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+# 静的ファイルの設定
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-@app.get("/db-test")
-def db_test():
+app.add_middleware(SessionMiddleware, secret_key="secret-key")
+
+# テーブル作成（開発中のみ）
+Store.metadata.create_all(bind=engine)
+Staff.metadata.create_all(bind=engine)
+
+# データベースセッション取得
+def get_db():
+    db = SessionLocal()
     try:
-        # MySQLに接続
-        conn = mysql.connector.connect(
-            host="db",
-            port=3306,
-            user="root",
-            password="password",
-            database="shift_scheduler"
-        )
-        return {"message": "DB接続成功"}
-    except mysql.connector.Error as err:
-        return {"message": f"DB接続エラー: {err}"}
+        yield db
+    finally:
+        db.close()
+
+# ログイン画面を表示（GET）
+@app.get("/login")
+async def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.post("/login")
+async def login(request: Request, db: Session = Depends(get_db)):
+    form_data = await request.form()
+    login_code = form_data.get("login_code")
+    password = form_data.get("password")
+    
+    # ユーザーの認証
+    user = db.query(Staff).filter(Staff.login_code == login_code).first()
+    
+    # ユーザーが見つからないか、パスワードが間違っている場合
+    if user is None or password != user.password:
+        raise HTTPException(status_code=401, detail="Invalid login or password")
+    
+    # ログイン成功時にはセッションやJWTトークンを生成して返す（リダイレクト）
+    response = RedirectResponse(url="/")
+    request.session['user_logged_in'] = True
+    return response
+
+# ホーム画面表示
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request, db: Session = Depends(get_db)):
+    # セッションからログイン状態を確認
+    user_logged_in = request.session.get('user_logged_in', False)
+    
+    # ログインしていない場合はログインボタンを表示
+    if not user_logged_in:
+        login_button = {"name": "ログイン画面へ", "url": "/login"}
+    else:
+        login_button = {"name": "ログアウト", "url": "/logout"}
+
+    return templates.TemplateResponse("home.html", {
+        "request": request,
+        "user_logged_in": user_logged_in,
+        "login_button": login_button
+    })
 
 
-        
-        

@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}シフト管理アプリ{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- ヘッダー -->
+    <header class="header">
+        <button class="menu-button" onclick="toggleMenu()">☰</button>
+        <h1 class="header-title">{% block header_title %}ホーム{% endblock %}</h1>
+    </header>
+
+    <!-- サイドメニュー -->
+    <nav id="side-menu" class="side-menu">
+        <a href="/">ホーム</a>
+        {% block side_menu %}{% endblock %}
+    </nav>
+
+    <!-- コンテンツ -->
+    <main class="main-content">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <script>
+        function toggleMenu() {
+            const menu = document.getElementById('side-menu');
+            menu.classList.toggle('open');
+        }
+    </script>
+</body>
+</html>

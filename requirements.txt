@@ -3,3 +3,11 @@ uvicorn
 mysql-connector-python
 sqlalchemy
 pymysql
+python-dotenv
+requests
+pydantic
+passlib[bcrypt]
+python-jose
+jinja2
+itsdangerous
+python-multipart

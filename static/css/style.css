@@ -1,0 +1,83 @@
+/* static/css/style.css */
+
+/* 全体設定 */
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f8f8f8;
+}
+
+/* ヘッダー */
+.header {
+    display: flex;
+    align-items: center;
+    background-color: #007BFF;
+    color: white;
+    padding: 10px;
+}
+
+.menu-button {
+    font-size: 24px;
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+.header-title {
+    font-size: 20px;
+}
+
+/* サイドメニュー */
+.side-menu {
+    position: fixed;
+    top: 0;
+    left: -200px;
+    width: 200px;
+    height: 100%;
+    background-color: #343a40;
+    color: white;
+    padding-top: 60px;
+    transition: left 0.3s;
+    display: flex;
+    flex-direction: column;
+}
+
+.side-menu a {
+    padding: 12px;
+    text-decoration: none;
+    color: white;
+    display: block;
+}
+
+.side-menu a:hover {
+    background-color: #495057;
+}
+
+.side-menu.open {
+    left: 0;
+}
+
+/* メインコンテンツ */
+.main-content {
+    margin-left: 20px;
+    padding: 20px;
+}
+
+/* カレンダー部分 */
+.calendar-container {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.select-year-month {
+    margin-bottom: 20px;
+}
+
+.select-year-month select {
+    padding: 5px;
+    margin-right: 5px;
+}

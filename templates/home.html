@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}ホーム{% endblock %}
+
+{% block header_title %}ホーム画面{% endblock %}
+
+{% block side_menu %}
+    {% if user_logged_in %}
+        <a href="/shift_request">シフト希望提出</a>
+        <a href="/salary_estimate">給料概算</a>
+    {% else %}
+        <a href="/login">ログイン</a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if user_logged_in %}
+        <div class="calendar-container">
+            <h2>カレンダー（月表示）</h2>
+            <div class="select-year-month">
+                <select id="year">
+                    {% for y in years %}
+                        <option value="{{ y }}">{{ y }}</option>
+                    {% endfor %}
+                </select>
+                年
+                <select id="month">
+                    {% for m in months %}
+                        <option value="{{ m }}">{{ m }}</option>
+                    {% endfor %}
+                </select>
+                月
+            </div>
+            <div id="calendar">
+                <p>ここにカレンダーが入ります (後で実装)</p>
+            </div>
+        </div>
+    {% else %}
+        <div class="login-message">
+            <p>店長にIDとパスワードを聞いてログインしてください。</p>
+            <a href="{{ login_button.url }}" class="login-button">{{ login_button.name }}</a>
+        </div>
+    {% endif %}
+{% endblock %}
