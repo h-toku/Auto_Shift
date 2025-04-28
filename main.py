@@ -53,7 +53,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid login or password")
     
     # ログイン成功時にはセッションやJWTトークンを生成して返す（リダイレクト）
-    response = RedirectResponse(url="/")
+    response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     request.session['user_logged_in'] = True
     return response
 
@@ -62,6 +62,8 @@ async def login(request: Request, db: Session = Depends(get_db)):
 async def home(request: Request, db: Session = Depends(get_db)):
     # セッションからログイン状態を確認
     user_logged_in = request.session.get('user_logged_in', False)
+    user_name = request.session.get('user_name') if user_logged_in else None
+    store_name = request.session.get('store_name') if user_logged_in else None
     
     # ログインしていない場合はログインボタンを表示
     if not user_logged_in:
@@ -72,7 +74,17 @@ async def home(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("home.html", {
         "request": request,
         "user_logged_in": user_logged_in,
+        "user_name": user_name,
+        "store_name": store_name,
         "login_button": login_button
     })
 
-
+@app.post("/logout")
+async def logout(request: Request):
+    # セッションからユーザー情報を削除
+    request.session.pop('user_logged_in', None)
+    request.session.pop('user_name', None)
+    request.session.pop('store_name', None)
+    
+    # ログイン画面にリダイレクト
+    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
