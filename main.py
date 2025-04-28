@@ -55,6 +55,8 @@ async def login(request: Request, db: Session = Depends(get_db)):
     # ログイン成功時にはセッションやJWTトークンを生成して返す（リダイレクト）
     response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     request.session['user_logged_in'] = True
+    request.session['user_name'] = user.name  # ユーザー名をセッションに保存
+    request.session['store_name'] = user.store.name  # ストア名をセッションに保存
     return response
 
 # ホーム画面表示

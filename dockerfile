@@ -4,11 +4,19 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # 必要なパッケージをインストール
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     build-essential \
     default-mysql-client \
-    && rm -rf /var/lib/apt/lists/*
+    locales && \
+    sed -i 's/# ja_JP.UTF-8 UTF-8/ja_JP.UTF-8 UTF-8/' /etc/locale.gen && \
+    locale-gen && \
+    rm -rf /var/lib/apt/lists/*
+
+# 環境変数を設定して、日本語ロケールを使う
+ENV LANG=ja_JP.UTF-8
+ENV LANGUAGE=ja_JP:ja
+ENV LC_ALL=ja_JP.UTF-8
 
 # 必要なPythonパッケージのインストール
 COPY requirements.txt /app/
