@@ -1,0 +1,22 @@
+<form method="post" action="/staff/register">
+    <label>名前:</label><input type="text" name="name" required><br>
+    <label>希望日数:</label><input type="number" name="desired_days" required><br>
+
+    <label>キッチンA:</label><input type="number" name="kitchen_a" value="0"><br>
+    <label>キッチンB:</label><input type="number" name="kitchen_b" value="0"><br>
+    <label>ドリンク:</label><input type="number" name="drink" value="0"><br>
+    <label>ホール:</label><input type="number" name="hall" value="0"><br>
+    <label>リーダーシップ:</label><input type="number" name="leadership" value="0"><br>
+
+    <label>ログインコード:</label><input type="text" name="login_code" required><br>
+    <label>パスワード:</label><input type="text" name="password" required><br>
+
+    <label>勤務形態:</label>
+    <select name="employment_type">
+        <option value="社員">社員</option>
+        <option value="バイト">バイト</option>
+        <option value="未成年バイト">未成年バイト</option>
+    </select><br><br>
+
+    <button type="submit">登録</button>
+</form>

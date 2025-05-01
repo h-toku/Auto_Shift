@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, status
+from fastapi import FastAPI, HTTPException, Depends, Request, status, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from models import Store, Staff
@@ -34,6 +34,12 @@ def get_db():
     finally:
         db.close()
 
+def get_current_staff(request: Request, db: Session):
+    user_name = request.session.get("user_name")
+    if not user_name:
+        return None
+    return db.query(Staff).filter(Staff.name == user_name).first()
+
 # ログイン画面を表示（GET）
 @app.get("/login")
 async def login_page(request: Request):
@@ -66,6 +72,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
     user_logged_in = request.session.get('user_logged_in', False)
     user_name = request.session.get('user_name') if user_logged_in else None
     store_name = request.session.get('store_name') if user_logged_in else None
+    employment_type = request.session.get('employment_type') if user_logged_in else None
     
     # ログインしていない場合はログインボタンを表示
     if not user_logged_in:
@@ -78,6 +85,7 @@ async def home(request: Request, db: Session = Depends(get_db)):
         "user_logged_in": user_logged_in,
         "user_name": user_name,
         "store_name": store_name,
+        "employment_type": employment_type,
         "login_button": login_button
     })
 
@@ -90,3 +98,52 @@ async def logout(request: Request):
     
     # ログイン画面にリダイレクト
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/staff/register")
+def get_register_form(request: Request, db: Session = Depends(get_db)):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        return RedirectResponse(url="/", status_code=303)
+
+    return templates.TemplateResponse("staff_register.html", {
+        "request": request,
+        "employment_type": current_staff.employment_type
+    })
+
+
+@app.post("/staff/register")
+def register_staff(
+    request: Request,
+    name: str = Form(...),
+    desired_days: int = Form(...),
+    kitchen_a: int = Form(0),
+    kitchen_b: int = Form(0),
+    drink: int = Form(0),
+    hall: int = Form(0),
+    leadership: int = Form(0),
+    employment_type: str = Form(...),
+    login_code: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        return RedirectResponse(url="/", status_code=303)
+
+    new_staff = Staff(
+        name=name,
+        desired_days=desired_days,
+        kitchen_a=kitchen_a,
+        kitchen_b=kitchen_b,
+        drink=drink,
+        hall=hall,
+        leadership=leadership,
+        employment_type=employment_type,
+        login_code=login_code,
+        password=password,
+        store_id=current_staff.store_id
+    )
+    db.add(new_staff)
+    db.commit()
+    return RedirectResponse(url="/", status_code=303)

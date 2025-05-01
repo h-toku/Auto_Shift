@@ -8,6 +8,9 @@
     {% if user_logged_in %}
         <a href="/shift_request">シフト希望提出</a>
         <a href="/salary_estimate">給料概算</a>
+        {% if employment_type == "社員" %}
+            <a href="/staff/register">スタッフ登録</a>
+        {% endif %}
     {% else %}
         <a href="/login">ログイン</a>
     {% endif %}
