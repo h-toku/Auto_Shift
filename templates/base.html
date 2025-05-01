@@ -31,11 +31,24 @@
       <button class="close-button" onclick="toggleMenu()">×</button>
       <!-- 閉じるボタン -->
       <a href="/">ホーム</a>
-      {% block side_menu %}{% endblock %}
+      {% block side_menu %}
+  {% if user_logged_in %}
+    <a href="/shift_request">シフト希望提出</a>
+    <a href="/salary_estimate">給料概算</a>
+    {% if employment_type == "社員" %}
+      <a href="/staff/register">スタッフ登録</a>
+      <a href="/staff/manage">スタッフ管理</a>
+    {% endif %}
+  {% else %}
+    <a href="/login">ログイン</a>
+  {% endif %}
+{% endblock %}
     </nav>
 
     <!-- コンテンツ -->
-    <main class="main-content">{% block content %} {% endblock %}</main>
+    <main class="main-content">{% block content %}
+      
+      {% endblock %}</main>
 
     <script>
       function toggleMenu() {

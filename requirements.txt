@@ -11,3 +11,4 @@ python-jose
 jinja2
 itsdangerous
 python-multipart
+jpholiday

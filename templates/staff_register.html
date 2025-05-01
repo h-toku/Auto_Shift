@@ -1,5 +1,13 @@
+{% extends "base.html" %}
+
+{% block content %}
 <form method="post" action="/staff/register">
     <label>名前:</label><input type="text" name="name" required><br>
+    <label>性別:</label>
+    <select name="gender">
+        <option value="男">男</option>
+        <option value="女">女</option>
+    </select><br>
     <label>希望日数:</label><input type="number" name="desired_days" required><br>
 
     <label>キッチンA:</label><input type="number" name="kitchen_a" value="0"><br>
@@ -20,3 +28,4 @@
 
     <button type="submit">登録</button>
 </form>
+{% endblock %}

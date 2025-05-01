@@ -9,11 +9,13 @@ body {
 .header {
     display: flex;
     align-items: center;
-    justify-content: space-between;  /* 左右に要素を分ける */
+    justify-content: space-between;
+    /* 左右に要素を分ける */
     background-color: #007BFF;
     color: white;
     padding: 10px 20px;
-    height: 60px;  /* ヘッダーの高さを固定 */
+    height: 60px;
+    /* ヘッダーの高さを固定 */
 }
 
 .menu-button {
@@ -33,11 +35,13 @@ body {
 .user-info {
     display: flex;
     flex-direction: column;
-    align-items: flex-end;  /* 右寄せ */
+    align-items: flex-end;
+    /* 右寄せ */
     text-align: right;
 }
 
-.user-name, .store-name {
+.user-name,
+.store-name {
     margin: 0;
     font-size: 16px;
 }
@@ -140,7 +144,8 @@ button:hover {
     }
 
     .side-menu {
-        width: 250px;  /* モバイルで広めに */
+        width: 250px;
+        /* モバイルで広めに */
     }
 
     .menu-button {
@@ -162,4 +167,31 @@ button:hover {
     .side-menu.open {
         left: 0;
     }
+}
+
+.calendar-table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.calendar-table th,
+.calendar-table td {
+    border: 1px solid #ccc;
+    text-align: center;
+    padding: 5px;
+}
+
+.today {
+    background-color: #ffffcc;
+    font-weight: bold;
+}
+
+.saturday {
+    background-color: #e0f7ff;
+    color: blue;
+}
+
+.sunday {
+    background-color: #ffe0e0;
+    color: red;
 }

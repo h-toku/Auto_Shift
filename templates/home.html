@@ -4,44 +4,72 @@
 
 {% block header_title %}ホーム画面{% endblock %}
 
-{% block side_menu %}
-    {% if user_logged_in %}
-        <a href="/shift_request">シフト希望提出</a>
-        <a href="/salary_estimate">給料概算</a>
-        {% if employment_type == "社員" %}
-            <a href="/staff/register">スタッフ登録</a>
-        {% endif %}
-    {% else %}
-        <a href="/login">ログイン</a>
-    {% endif %}
-{% endblock %}
-
 {% block content %}
-    {% if user_logged_in %}
-        <div class="calendar-container">
-            <h2>カレンダー（月表示）</h2>
-            <div class="select-year-month">
-                <select id="year">
-                    {% for y in years %}
-                        <option value="{{ y }}">{{ y }}</option>
-                    {% endfor %}
-                </select>
-                年
-                <select id="month">
-                    {% for m in months %}
-                        <option value="{{ m }}">{{ m }}</option>
-                    {% endfor %}
-                </select>
-                月
-            </div>
-            <div id="calendar">
-                <p>ここにカレンダーが入ります (後で実装)</p>
-            </div>
-        </div>
-    {% else %}
-        <div class="login-message">
-            <p>店長にIDとパスワードを聞いてログインしてください。</p>
-            <a href="{{ login_button.url }}" class="login-button">{{ login_button.name }}</a>
-        </div>
-    {% endif %}
+  {% if user_logged_in %}
+  <div class="calendar-container">
+    <h2>カレンダー（月表示）</h2>
+    <div class="select-year-month">
+      <form method="get">
+        <select name="year">
+          {% for y in years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select> 年
+  
+        <select name="month">
+          {% for m in months %}
+            <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select> 月
+  
+        <button type="submit">表示</button>
+      </form>
+    </div>
+  
+    <table class="calendar-table">
+      <thead>
+        <tr>
+          <th>スタッフ名</th>
+          {% for day in days_in_month %}
+            <th class="{{ day.style_class }}">
+              {{ day.day }}
+            </th>
+          {% endfor %}
+        </tr>
+        <tr>
+          <th></th>
+          {% for day in days_in_month %}
+            <th class="{{ day.style_class }}">
+              {{ day.weekday }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for staff in staffs %}
+          <tr>
+            <td style="color: {{ staff.color }};">{{ staff.name }}</td>
+            {% for day in days_in_month %}
+              <td class="{{ day.style_class }}">
+                {% if staff_shifts[staff.id][day.day] %}
+                  <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
+                {% else %}
+                  <span class="off"></span>
+                {% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  
+  {% else %}
+    <div class="login-message">
+      <p>店長にIDとパスワードを聞いてログインしてください。</p>
+      <a href="{{ login_button.url }}" class="login-button">
+        {{ login_button.name }}
+      </a>
+    </div>
+  {% endif %}
 {% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}シフト希望提出{% endblock %}
+{% block header_title %}シフト希望提出{% endblock %}
+
+{% block content %}
+<div class="calendar-container">
+  <h2>シフト希望カレンダー</h2>
+
+  <div class="select-year-month">
+    <form method="get" action="/shift_request">
+      <select name="year">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>年
+      <select name="month">
+        {% for m in months %}
+        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>月
+      <button type="submit">表示</button>
+    </form>
+  </div>
+
+  <form method="post" action="/shift_request/update">
+    <table class="calendar-table">
+      <thead>
+        <tr>
+          <th>日付</th>
+          {% for date in dates %}
+          <th class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+            {{ date.day }}<br>{{ date.weekday }}
+          </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>希望</td>
+          {% for date in dates %}
+          <td>
+            {% if date.editable %}
+              <select name="status_{{ date.iso }}">
+                <option value="">--</option>
+                <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
+                <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+                <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+              </select>
+              <br>
+              <input type="time" name="start_{{ date.iso }}" value="{{ shift_data[date.iso].start }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              〜
+              <input type="time" name="end_{{ date.iso }}" value="{{ shift_data[date.iso].end }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+            {% else %}
+              {% if shift_data[date.iso].status == '×' %}
+                休
+              {% elif shift_data[date.iso].status == '○' %}
+                終日
+              {% elif shift_data[date.iso].status == 'time' %}
+                {{ shift_data[date.iso].start }}〜{{ shift_data[date.iso].end }}
+              {% else %}
+                -
+              {% endif %}
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+
+    {% if editable %}
+    <div style="margin-top: 20px;">
+      <button type="submit">保存</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+
+<script>
+  // ステータス変更に応じて時間入力の有効/無効を切り替える
+  document.querySelectorAll("select[name^='status_']").forEach(select => {
+    select.addEventListener("change", (e) => {
+      const iso = select.name.split("_")[1];
+      const start = document.querySelector(`input[name="start_${iso}"]`);
+      const end = document.querySelector(`input[name="end_${iso}"]`);
+      const isTime = select.value === "time";
+      if (start && end) {
+        start.disabled = !isTime;
+        end.disabled = !isTime;
+      }
+    });
+  });
+</script>
+{% endblock %}
