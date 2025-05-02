@@ -195,3 +195,38 @@ button:hover {
     background-color: #ffe0e0;
     color: red;
 }
+
+.staff-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.staff-table th {
+    text-align: center;
+    padding: 10px;
+    width: 10px;
+    background-color: #5ca0e9;
+}
+
+.staff-table td {
+    text-align: center;
+    padding: 4px;
+    width: 5px;
+    line-height: 1.2;
+}
+
+.staff-table input[type="text"],
+.staff-table input[type="number"] {
+    width: 100%;
+    /* セルの幅に合わせる */
+    box-sizing: border-box;
+    /* パディング・ボーダーを含む幅 */
+    padding: 4px;
+    /* パディング調整 */
+}
+
+/* 編集モードのインプットを整える */
+.staff-table input[readonly] {
+    background-color: #f9f9f9;
+}

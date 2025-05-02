@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 from calendar import monthrange
 from datetime import date
 import dotenv
-import os
 import jpholiday
-from pydantic_models import StaffCreate, Staff, ShiftRequestCreate, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest
+from pydantic_models import Staff, ShiftRequest, StaffOut
+from models import Store, Staff, ShiftRequest, Shift
 from database import SessionLocal, engine
 from utils import get_common_context
-from typing import List
+from datetime import datetime, timedelta
+from schemas import ShiftRequestUpdate
+
 dotenv.load_dotenv()
 
 templates = Jinja2Templates(directory="templates")
@@ -32,7 +33,7 @@ def get_db():
     finally:
         db.close()
 
-def get_current_staff(request: Request, db: Session):
+def get_current_staff(request: Request, db: Session = Depends(get_db)):
     user_name = request.session.get("user_name")
     if not user_name:
         raise HTTPException(
@@ -206,13 +207,12 @@ async def register_staff(
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-@app.get("/staff/manage", response_model=List[StaffOut])  # StaffOutはPydanticモデル
+@app.get("/staff/manage")
 async def staff_manage(request: Request, db: Session = Depends(get_db), user=Depends(get_current_staff)):
     if user is None or user.employment_type != "社員":
         return RedirectResponse(url="/", status_code=303)
 
     staffs = db.query(Staff).filter(Staff.store_id == user.store_id).all()
-    # SQLAlchemyモデルのStaffをPydanticモデルStaffOutに変換
     staff_outs = [StaffOut.from_orm(staff) for staff in staffs]
     context = get_common_context(request)
     context.update({"request": request, "staffs": staff_outs})
@@ -245,12 +245,86 @@ async def update_bulk_staff(
 
 
 @app.get("/shift_request")
-async def shift_request_form(request: Request, db: Session = Depends(get_db)):
+async def shift_request_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = None,
+    month: int = None
+):
+
     if not request.session.get("user_logged_in"):
         return RedirectResponse(url="/login", status_code=303)
 
-    context = get_common_context(request)
-    context["request"] = request
+    staff_id = request.session.get("staff_id")
+
+    # デフォルトは翌月
+    today = datetime.today()
+    if not year or not month:
+        if today.month == 12:
+            year = today.year + 1
+            month = 1
+        else:
+            year = today.year
+            month = today.month + 1
+
+    # カレンダー日付生成
+    first_day = date(year, month, 1)
+    dates = []
+    d = first_day
+    while d.month == month:
+        dates.append({
+            "day": d.day,
+            "iso": d.isoformat(),
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][d.weekday()],
+            "is_today": d == today.date(),
+            "is_saturday": d.weekday() == 5,
+            "is_sunday": d.weekday() == 6,
+            "editable": True  # 自分の希望を提出する画面なら常に編集可能
+        })
+        d += timedelta(days=1)
+
+    # DBから該当月の希望を取得
+    shift_requests = db.query(ShiftRequest).filter_by(
+        staff_id=staff_id, year=year, month=month
+    ).all()
+
+    # shift_data: iso日付文字列 → {status, start, end}
+    shift_data = {}
+    for d in dates:
+        shift_data[d["iso"]] = {"status": "", "start": "", "end": ""}
+
+    for r in shift_requests:
+        iso = date(r.year, r.month, r.day).isoformat()
+        shift_data[iso] = {
+            "status": r.status or "",
+            "start": r.start or "",
+            "end": r.end or ""
+        }
+
+    # 年・月の選択肢生成
+    current_year = today.year
+    years = [current_year, current_year + 1]
+    months = list(range(1, 13))
+
+    # テンプレートに渡すコンテキスト
+    context = {
+        "request": request,
+        "user_logged_in": request.session.get("user_logged_in"),
+        "user_name": request.session.get("user_name"),
+        "store_name": request.session.get("store_name"),
+        "employment_type": request.session.get("employment_type"),
+        "staff_id": staff_id,
+        "store_id": request.session.get("store_id"),
+        "current_year": current_year,
+        "current_month": today.month,
+        "dates": dates,
+        "shift_data": shift_data,
+        "years": years,
+        "months": months,
+        "selected_year": year,
+        "selected_month": month,
+        "editable": True
+    }
     return templates.TemplateResponse("shift_request.html", context)
 
 @app.post("/shift_request")
@@ -273,3 +347,47 @@ async def submit_shift_request(
 
     db.commit()
     return RedirectResponse(url="/", status_code=303)
+
+from fastapi import Form
+
+@app.post("/shift_request/update")
+async def update_shift_request(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    form_data = await request.form()
+    
+    for key, value in form_data.items():
+        if key.startswith("status_"):
+            iso_date = key.replace("status_", "")
+            
+            # iso_date を "YYYY-MM-DD" 形式から年、月、日に分解
+            year, month, day = iso_date.split("-")
+            year, month, day = int(year), int(month), int(day)
+
+            status = value
+            start = form_data.get(f"start_{iso_date}")
+            end = form_data.get(f"end_{iso_date}")
+            
+            # DBに保存する処理
+            shift_request = db.query(ShiftRequest).filter_by(year=year, month=month, day=day).first()
+            
+            if not shift_request:
+                shift_request = ShiftRequest(year=year, month=month, day=day)
+                db.add(shift_request)
+            
+            # status と start_time, end_time を更新
+            shift_request.status = status
+            
+            # status が "time" の場合にのみ時間を設定
+            if status == "time":
+                shift_request.start_time = start
+                shift_request.end_time = end
+            else:
+                shift_request.start_time = None
+                shift_request.end_time = None
+
+    db.commit()
+
+    
+    return RedirectResponse(url="/shift_request", status_code=303)

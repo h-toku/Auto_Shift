@@ -1,48 +1,65 @@
 {% extends "base.html" %}
 
-{% block title %}スタッフ管理{% endblock %}
+{% block header_title %}スタッフ管理{% endblock %}
 
 {% block content %}
-<h2>スタッフ管理</h2>
+<h2>{{ store_name }}</h2>
 
-<!-- 編集ボタン -->
 <button id="editButton" onclick="toggleEditMode()">編集</button>
 
-<form id="staffForm" action="/staff/update_bulk" method="POST" style="display: none;">
-    <table>
-        <thead>
-            <tr>
-                <th>名前</th>
-                <th>性別</th>
-                <th>希望日数</th>
-                <th>キッチンA</th>
-                <th>キッチンB</th>
-                <th>ドリンク</th>
-                <th>ホール</th>
-                <th>リーダーシップ</th>
-            </tr>
-        </thead>
-        <tbody>
-          {% for staff in staffs %}
-              <tr id="staff_{{ staff.id }}">
-                  <td><input type="text" name="staffs[{{ staff.id }}][name]" value="{{ staff.name }}" readonly></td>
-                  <td><input type="text" name="staffs[{{ staff.id }}][gender]" value="{{ staff.gender }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][desired_days]" value="{{ staff.desired_days }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][kitchen_a]" value="{{ staff.kitchen_a }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][kitchen_b]" value="{{ staff.kitchen_b }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][drink]" value="{{ staff.drink }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][hall]" value="{{ staff.hall }}" readonly></td>
-                  <td><input type="number" name="staffs[{{ staff.id }}][leadership]" value="{{ staff.leadership }}" readonly></td>
-                  <input type="hidden" name="staffs[{{ staff.id }}][id]" value="{{ staff.id }}">
-              </tr>
-          {% endfor %}
-      </tbody>
-    </table>
-    <button type="submit">保存</button>
-    <button type="button" onclick="cancelEdit()">キャンセル</button>
-</form>
+<button type="submit">保存</button>
 
+<button type="button" onclick="cancelEdit()">キャンセル</button>
+
+<form id="staffForm" action="/staff/update_bulk" method="POST" class="hidden">  <!-- hiddenクラスを使用 -->
+
+{% if staffs %}
+<table class="staff-table">
+    <thead>
+        <tr>
+            <th>名前</th>
+            <th>性別</th>
+            <th>希望日数</th>
+            <th>キッチンA</th>
+            <th>キッチンB</th>
+            <th>ドリンク</th>
+            <th>ホール</th>
+            <th>リーダー<br>シップ</th>
+            <th>ログイン<br>コード</th>
+            <th>パスワード</th>
+            <th>勤務形態</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for staff in staffs %}
+        <tr id="staff_{{ staff.id }}">
+            <td><input type="text" name="staffs[{{ staff.id }}][name]" value="{{ staff.name if staff.name is not none else '未設定' }}" readonly></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][gender]" value="{{ staff.gender if staff.gender is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][desired_days]" value="{{ staff.desired_days if staff.desired_days is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][kitchen_a]" value="{{ staff.kitchen_a if staff.kitchen_a is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][kitchen_b]" value="{{ staff.kitchen_b if staff.kitchen_b is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][drink]" value="{{ staff.drink if staff.drink is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][hall]" value="{{ staff.hall if staff.hall is not none else '未設定' }}" readonly></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][leadership]" value="{{ staff.leadership if staff.leadership is not none else '未設定' }}" readonly></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][login_code]" value="{{ staff.login_code if staff.login_code is not none else '未設定' }}" readonly></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][password]" value="{{ staff.password if staff.password is not none else '未設定' }}" readonly></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][employment_type]" value="{{ staff.employment_type if staff.employment_type is not none else '未設定' }}" readonly></td>
+            <input type="hidden" name="staffs[{{ staff.id }}][id]" value="{{ staff.id }}">
+        </tr>
+    {% endfor %}
+</tbody>
+</table>
+{% else %}
+<p>スタッフ情報がありません。</p>
+{% endif %}
+
+</form>
 {% endblock %}
+
+<!-- CSSとJavaScript -->
+<style>
+    .hidden { display: none; }
+</style>
 
 <script>
 function toggleEditMode() {
@@ -51,14 +68,14 @@ function toggleEditMode() {
     const inputs = form.querySelectorAll('input');
 
     // 編集モードの切り替え
-    if (form.style.display === 'none') {
-        form.style.display = 'block';
+    if (form.classList.contains('hidden')) {
+        form.classList.remove('hidden'); // フォームを表示
         editButton.innerText = '終了';
-        inputs.forEach(input => input.removeAttribute('readonly'));
+        inputs.forEach(input => input.removeAttribute('readonly')); // 編集可能にする
     } else {
-        form.style.display = 'none';
+        form.classList.add('hidden'); // フォームを非表示
         editButton.innerText = '編集';
-        inputs.forEach(input => input.setAttribute('readonly', true));
+        inputs.forEach(input => input.setAttribute('readonly', true)); // 読み取り専用に戻す
     }
 }
 
@@ -69,9 +86,8 @@ function cancelEdit() {
     // 編集をキャンセルして元の状態に戻す
     inputs.forEach(input => {
         input.setAttribute('readonly', true);
-        // フォームを非表示にして元に戻す
-        form.style.display = 'none';
     });
+    form.classList.add('hidden'); // フォームを非表示
     document.getElementById('editButton').innerText = '編集';
 }
 </script>

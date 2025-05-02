@@ -100,7 +100,7 @@ class Store(StoreBase):
 class StaffOut(BaseModel):
     id: int
     name: str
-    gender: str
+    gender: Optional[str] = None
     employment_type: str
     store_id: int
     desired_days: int
@@ -110,5 +110,6 @@ class StaffOut(BaseModel):
     hall: int
     leadership: int
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }

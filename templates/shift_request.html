@@ -1,5 +1,4 @@
 {% extends "base.html" %}
-{% block title %}シフト希望提出{% endblock %}
 {% block header_title %}シフト希望提出{% endblock %}
 
 {% block content %}
@@ -22,22 +21,26 @@
     </form>
   </div>
 
-  <form method="post" action="/shift_request/update">
+{% set mid = (dates | length) // 2 + (dates | length) % 2 %}
+{% set first_half = dates[:mid] %}
+{% set second_half = dates[mid:] %}
+
+  <form method="post" action="/update">
     <table class="calendar-table">
-      <thead>
+      <tbody>
+        <!-- 前半：日付 -->
         <tr>
-          <th>日付</th>
-          {% for date in dates %}
-          <th class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+          <td>日付</td>
+          {% for date in first_half %}
+          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
             {{ date.day }}<br>{{ date.weekday }}
-          </th>
+          </td>
           {% endfor %}
         </tr>
-      </thead>
-      <tbody>
+        <!-- 前半：希望 -->
         <tr>
           <td>希望</td>
-          {% for date in dates %}
+          {% for date in first_half %}
           <td>
             {% if date.editable %}
               <select name="status_{{ date.iso }}">
@@ -45,26 +48,48 @@
                 <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
                 <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
                 <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
-              </select>
-              <br>
+              </select><br>
               <input type="time" name="start_{{ date.iso }}" value="{{ shift_data[date.iso].start }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
               〜
               <input type="time" name="end_{{ date.iso }}" value="{{ shift_data[date.iso].end }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
             {% else %}
-              {% if shift_data[date.iso].status == '×' %}
-                休
-              {% elif shift_data[date.iso].status == '○' %}
-                終日
-              {% elif shift_data[date.iso].status == 'time' %}
-                {{ shift_data[date.iso].start }}〜{{ shift_data[date.iso].end }}
-              {% else %}
-                -
-              {% endif %}
+              {{ shift_data[date.iso].status or '-' }}
             {% endif %}
           </td>
           {% endfor %}
         </tr>
-      </tbody>
+      
+        <!-- 後半：日付 -->
+        <tr>
+          <td>日付</td>
+          {% for date in second_half %}
+          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+            {{ date.day }}<br>{{ date.weekday }}
+          </td>
+          {% endfor %}
+        </tr>
+        <!-- 後半：希望 -->
+        <tr>
+          <td>希望</td>
+          {% for date in second_half %}
+          <td>
+            {% if date.editable %}
+              <select name="status_{{ date.iso }}">
+                <option value="">--</option>
+                <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
+                <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+                <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+              </select><br>
+              <input type="time" name="start_{{ date.iso }}" value="{{ shift_data[date.iso].start }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              〜
+              <input type="time" name="end_{{ date.iso }}" value="{{ shift_data[date.iso].end }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+            {% else %}
+              {{ shift_data[date.iso].status or '-' }}
+            {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+      </tbody>      
     </table>
 
     {% if editable %}

@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}シフト管理アプリ{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css" />
+    <link rel="stylesheet" href="/static/css/style.css">
   </head>
   <body>
     <!-- ヘッダー -->
     <header class="header">
       <button class="menu-button" onclick="toggleMenu()">☰</button>
-      <h1 class="header-title">{% block header_title %}ホーム{% endblock %}</h1>
+      <h1 class="header-title">{% block header_title %}シフト管理アプリ{% endblock %}</h1>
 
       <!-- ヘッダー右側のログイン情報 -->
       {% if user_logged_in %}
