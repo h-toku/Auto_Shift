@@ -5,63 +5,6 @@ from sqlalchemy.orm import validates
 
 Base = declarative_base()
 
-class Shift(Base):
-    __tablename__ = 'shifts'
-    
-    id = Column(Integer, primary_key=True, index=True)
-    staff_id = Column(Integer, ForeignKey('staffs.id'))
-    date = Column(Date)
-    start_time = Column(Time)
-    end_time = Column(Time)
-    
-    staff = relationship('Staff', back_populates='shifts')
-
-
-class ShiftRequest(Base):
-    __tablename__ = "shift_requests"
-
-    id = Column(Integer, primary_key=True)
-    staff_id = Column(Integer, ForeignKey("staffs.id"), nullable=False)
-    year = Column(Integer, nullable=False)
-    month = Column(Integer, nullable=False)
-    day = Column(Integer, nullable=False)
-
-    status = Column(
-        Enum("×", "○", "time", name="status_enum"),
-        nullable=False
-    )
-    start_time = Column(Time, nullable=False)
-    end_time = Column(Time, nullable=False)
-    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)  # 店舗情報との関連
-    store = relationship("Store", back_populates="shift_requests", lazy='joined')  # リレーションの即時読み込み
-
-    @validates("start_time", "end_time")
-    def validate_times(self, key, value):
-        if self.store is None:  # storeがNoneの場合にエラーハンドリング
-            raise ValueError("店舗情報が設定されていません。")
-        store = self.store  # 店舗情報を取得
-        if self.status == "○":  # ステータスが○の場合、オープン時間からクローズ時間まで設定
-            if key == "start_time":
-                return store.open_time  # オープン時間に設定
-            if key == "end_time":
-                return store.close_time  # クローズ時間に設定
-        else:
-            return value  # 通常通り、指定された時間を使用
-
-
-
-class Store(Base):
-    __tablename__ = 'stores'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(255), unique=True, nullable=False)
-    open_hours = Column(Time, nullable=False)  # 修正：open_time → open_hours
-    close_hours = Column(Time, nullable=False)  # 修正：close_time → close_hours
-
-    staffs = relationship('Staff', back_populates='store')
-    shift_requests = relationship("ShiftRequest", back_populates="store")
-
-
 class Staff(Base):
     __tablename__ = 'staffs'
 
@@ -90,6 +33,7 @@ class Staff(Base):
     store = relationship("Store", back_populates="staffs")
     
     shifts = relationship('Shift', back_populates='staff')
+    shift_requests = relationship("ShiftRequest", back_populates="staff")
 
     # 0〜5に制限をかける
     __table_args__ = (
@@ -99,3 +43,57 @@ class Staff(Base):
         CheckConstraint('hall BETWEEN 0 AND 5', name='check_hall'),
         CheckConstraint('leadership BETWEEN 0 AND 5', name='check_leadership'),
     )
+
+class Shift(Base):
+    __tablename__ = 'shifts'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    staff_id = Column(Integer, ForeignKey('staffs.id'))
+    date = Column(Date)
+    start_time = Column(Time)
+    end_time = Column(Time)
+    
+    staff = relationship('Staff', back_populates='shifts')
+
+class ShiftRequest(Base):
+    __tablename__ = "shift_requests"
+
+    id = Column(Integer, primary_key=True)
+    staff_id = Column(Integer, ForeignKey("staffs.id"), nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    day = Column(Integer, nullable=False)
+
+    status = Column(
+        Enum("×", "○", "time", name="status_enum"),
+        nullable=True
+    )
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
+    # Staffとのリレーションを修正
+    staff = relationship("Staff", back_populates="shift_requests")
+
+    @validates("start_time", "end_time")
+    def validate_times(self, key, value):
+        if self.staff is None or self.staff.store is None:
+            return value  # 店舗が取得できない場合はバリデーションをスキップ
+
+        store = self.staff.store
+        if self.status == "○":
+            if key == "start_time":
+                return store.open_hours
+            if key == "end_time":
+                return store.close_hours
+        return value
+
+class Store(Base):
+    __tablename__ = 'stores'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), unique=True, nullable=False)
+    open_hours = Column(Time, nullable=False)  # 修正：open_time → open_hours
+    close_hours = Column(Time, nullable=False)  # 修正：close_time → close_hours
+
+    
+
+    staffs = relationship('Staff', back_populates='store')

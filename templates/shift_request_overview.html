@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block header_title %}シフト希望確認{% endblock %}
+
+{% block content %}
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト希望確認</title>
+</head>
+<body>
+    <h1>シフト希望確認</h1>
+
+    <form method="get" action="/shift_request/overview">
+        <label for="year">年: </label>
+        <input type="number" name="year" value="{{ year }}" min="2020" required>
+
+        <label for="month">月: </label>
+        <input type="number" name="month" value="{{ month }}" min="1" max="12" required>
+
+        <button type="submit">検索</button>
+    </form>
+
+    <h2>{{ year }}年{{ month }}月のシフト希望</h2>
+
+    {% if days %}
+        <table border="1">
+            <tr>
+                <th>日付</th>
+                <th>曜日</th>
+                <th>スタッフ名: シフト状態</th>
+            </tr>
+            {% for day in days %}
+            <tr class="{{ day.style_class }}">
+                <td>{{ day.day }}</td>
+                <td>{{ day.weekday }}</td>
+                <td>
+                    {% if day.requests %}
+                        {% for req in day.requests %}
+                            {% if req != None %}
+                                <div>{{ req.staff_name }}: {{ req.status }}</div>
+                            {% endif %}
+                        {% endfor %}
+                    {% else %}
+                        <div>なし</div>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </table>
+    {% else %}
+        <p>シフトリクエストはありません。</p>
+    {% endif %}
+</body>
+</html>
+{% endblock %}

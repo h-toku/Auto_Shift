@@ -8,6 +8,7 @@ from calendar import monthrange
 from datetime import date
 import dotenv
 import jpholiday
+import calendar
 from pydantic_models import Staff, ShiftRequest, StaffOut
 from models import Store, Staff, ShiftRequest, Shift
 from database import SessionLocal, engine
@@ -69,6 +70,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
     request.session['store_name'] = user.store.name
     request.session['employment_type'] = user.employment_type
     request.session['staff_id'] = user.id
+    request.session['store_id'] = store_id
 
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -158,7 +160,7 @@ async def logout(request: Request):
 async def get_register_form(request: Request, db: Session = Depends(get_db)):
     current_staff = get_current_staff(request, db)
     if current_staff is None or current_staff.employment_type != "社員":
-        return RedirectResponse(url="/", status_code=303)
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
 
     context = get_common_context(request)
     context.update({"request": request})
@@ -182,7 +184,7 @@ async def register_staff(
 ):
     current_staff = get_current_staff(request, db)
     if current_staff is None or current_staff.employment_type != "社員":
-        return RedirectResponse(url="/", status_code=303)
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
 
     new_staff = Staff(
         name=name,
@@ -226,7 +228,7 @@ async def update_bulk_staff(
 ):
     current_staff = get_current_staff(request, db)
     if current_staff is None or current_staff.employment_type != "社員":
-        return RedirectResponse(url="/", status_code=303)
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
 
     for item in updates:
         staff = db.query(Staff).filter(
@@ -297,8 +299,8 @@ async def shift_request_form(
         iso = date(r.year, r.month, r.day).isoformat()
         shift_data[iso] = {
             "status": r.status or "",
-            "start": r.start or "",
-            "end": r.end or ""
+            "start": r.start_time or "",
+            "end": r.end_time or ""
         }
 
     # 年・月の選択肢生成
@@ -307,14 +309,9 @@ async def shift_request_form(
     months = list(range(1, 13))
 
     # テンプレートに渡すコンテキスト
-    context = {
+    context = get_common_context(request)
+    context.update({
         "request": request,
-        "user_logged_in": request.session.get("user_logged_in"),
-        "user_name": request.session.get("user_name"),
-        "store_name": request.session.get("store_name"),
-        "employment_type": request.session.get("employment_type"),
-        "staff_id": staff_id,
-        "store_id": request.session.get("store_id"),
         "current_year": current_year,
         "current_month": today.month,
         "dates": dates,
@@ -324,7 +321,7 @@ async def shift_request_form(
         "selected_year": year,
         "selected_month": month,
         "editable": True
-    }
+    })
     return templates.TemplateResponse("shift_request.html", context)
 
 @app.post("/shift_request")
@@ -351,43 +348,132 @@ async def submit_shift_request(
 from fastapi import Form
 
 @app.post("/shift_request/update")
-async def update_shift_request(
+async def update_shift_request(request: Request, db: Session = Depends(get_db)):
+    try:
+        form_data = await request.form()
+        staff_id = request.session.get("staff_id")
+
+        if not staff_id:
+            raise ValueError("ログイン情報がありません。")
+
+        staff = db.query(Staff).filter_by(id=staff_id).first()
+        if not staff or not staff.store:
+            raise ValueError("店舗情報が設定されていません。")
+
+        for key, value in form_data.items():
+            if key.startswith("status_"):
+                iso_date = key.replace("status_", "")
+                year, month, day = map(int, iso_date.split("-"))
+
+                status = value if value in ["×", "○", "time"] else None
+                start = form_data.get(f"start_{iso_date}")
+                end = form_data.get(f"end_{iso_date}")
+
+                start_time = datetime.strptime(start, "%H:%M").time() if start else None
+                end_time = datetime.strptime(end, "%H:%M").time() if end else None
+
+                shift_request = (
+                    db.query(ShiftRequest)
+                    .filter_by(staff_id=staff_id, year=year, month=month, day=day)
+                    .first()
+                )
+                if not shift_request:
+                    shift_request = ShiftRequest(
+                        staff_id=staff_id, year=year, month=month, day=day
+                    )
+                    db.add(shift_request)
+
+                shift_request.status = status
+                shift_request.start_time = start_time if status == "time" else None
+                shift_request.end_time = end_time if status == "time" else None
+        
+        context = get_common_context(request)
+        context.update( {"request": request, "message": "シフト希望が送信されました。"})
+
+        db.commit()
+        return templates.TemplateResponse("done.html",context)
+
+    except Exception as e:
+        context.update({"message": f"エラーが発生しました: {str(e)}"})
+        return templates.TemplateResponse("done.html", context)
+
+
+
+@app.get("/shift_request/done")
+async def done_page(request: Request):
+    context = get_common_context(request)
+    context.update({
+        "request": request,
+        "message": "シフトリクエストを送信してください。"
+    })
+    return templates.TemplateResponse("done.html", context)
+
+@app.get("/shift_request/overview")
+async def shift_request_overview(
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    year: int = None,
+    month: int = None
 ):
-    form_data = await request.form()
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
+
+    store_id = current_staff.store_id
+    today = date.today()
+    if not year or not month:
+        year, month = today.year, today.month
+
+    # その月の日数
+    last_day = calendar.monthrange(year, month)[1]
+
+    # スタッフリスト
+    staff_list = db.query(Staff).filter(Staff.store_id == store_id).all()
+    staff_ids = [s.id for s in staff_list]
+    staff_map = {s.id: s.name for s in staff_list}
+
+    # シフトリクエストを取得
+    shift_requests = db.query(ShiftRequest).filter(
+        ShiftRequest.year == year,
+        ShiftRequest.month == month,
+        ShiftRequest.staff_id.in_(staff_ids)
+    ).all()
+
+    # 日付ごとのシフト情報をまとめる
+    day_data = []
+    for d in range(1, last_day + 1):
+        current = date(year, month, d)
+        weekday = current.strftime("%a")
+        style_class = ""
+        if current == today:
+            style_class = "today"
+        elif current.weekday() == 5:
+            style_class = "saturday"
+        elif current.weekday() == 6 or jpholiday.is_holiday(current):
+            style_class = "sunday"
+
+        # この日に該当するシフトリクエスト
+        requests_for_day = []
+        for r in shift_requests:
+            if r.day == d:
+                status = r.status
+                if status == "time":
+                    status_display = f"{r.start_time}～{r.end_time}"
+                else:
+                    status_display = status
+                requests_for_day.append({
+                    "staff_name": staff_map.get(r.staff_id, "不明"),
+                    "status": status_display
+                })
+
+        day_data.append({
+            "day": d,
+            "weekday": weekday,
+            "style_class": style_class,
+            "requests": requests_for_day
+        })
     
-    for key, value in form_data.items():
-        if key.startswith("status_"):
-            iso_date = key.replace("status_", "")
-            
-            # iso_date を "YYYY-MM-DD" 形式から年、月、日に分解
-            year, month, day = iso_date.split("-")
-            year, month, day = int(year), int(month), int(day)
+    context = get_common_context(request)
+    context.update({"request": request, "days": day_data, "year": year, "month": month })
 
-            status = value
-            start = form_data.get(f"start_{iso_date}")
-            end = form_data.get(f"end_{iso_date}")
-            
-            # DBに保存する処理
-            shift_request = db.query(ShiftRequest).filter_by(year=year, month=month, day=day).first()
-            
-            if not shift_request:
-                shift_request = ShiftRequest(year=year, month=month, day=day)
-                db.add(shift_request)
-            
-            # status と start_time, end_time を更新
-            shift_request.status = status
-            
-            # status が "time" の場合にのみ時間を設定
-            if status == "time":
-                shift_request.start_time = start
-                shift_request.end_time = end
-            else:
-                shift_request.start_time = None
-                shift_request.end_time = None
-
-    db.commit()
-
-    
-    return RedirectResponse(url="/shift_request", status_code=303)
+    return templates.TemplateResponse("shift_request_overview.html", context)

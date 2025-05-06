@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block header_title %}シフト希望提出{% endblock %}
+
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト希望　提出結果</title>
+</head>
+<body>
+    <h1>シフト希望</h1>
+
+    <p>{{ message }}</p>  <!-- メッセージ表示 -->
+
+    <a href="/shift_request">シフト希望提出</a>
+    <a href="/">ホームへ戻る</a>  <!-- リダイレクトリンク -->
+
+</body>
+</html>
+{% endblock %}

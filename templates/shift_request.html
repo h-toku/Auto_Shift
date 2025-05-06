@@ -25,7 +25,7 @@
 {% set first_half = dates[:mid] %}
 {% set second_half = dates[mid:] %}
 
-  <form method="post" action="/update">
+  <form method="post" action="/shift_request/update">
     <table class="calendar-table">
       <tbody>
         <!-- 前半：日付 -->
@@ -116,3 +116,5 @@
   });
 </script>
 {% endblock %}
+
+
