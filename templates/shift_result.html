@@ -1,0 +1,36 @@
+<h2>{{ year }}年{{ month }}月 シフト調整</h2>
+
+<form method="post" action="/shift_result">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+
+  <table>
+    <tr>
+      <th>日付</th>
+      {% for staff in staffs %}
+        <th>{{ staff.name }}</th>
+      {% endfor %}
+    </tr>
+    {% for day in days %}
+    <tr>
+      <td>{{ day }}</td>
+      {% for staff in staffs %}
+      {% set key = (day, staff.id) %}
+      <td>
+        <input type="time" name="{{ day }}-{{ staff.id }}-start" value="{{ shift_by_day.get(key, {}).get('start_time', '') }}">
+        -
+        <input type="time" name="{{ day }}-{{ staff.id }}-end" value="{{ shift_by_day.get(key, {}).get('end_time', '') }}">
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+
+  <button type="submit">保存</button>
+</form>
+
+<form method="post" action="/publish_shift">
+  <input type="hidden" name="year" value="{{ year }}">
+  <input type="hidden" name="month" value="{{ month }}">
+  <button type="submit">このシフトを公開する</button>
+</form>

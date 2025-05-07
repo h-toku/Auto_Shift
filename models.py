@@ -55,6 +55,17 @@ class Shift(Base):
     
     staff = relationship('Staff', back_populates='shifts')
 
+class Shiftresult(Base):
+    __tablename__ = 'shift_results'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    staff_id = Column(Integer, ForeignKey('staffs.id'))
+    date = Column(Date)
+    start_time = Column(Time)
+    end_time = Column(Time)
+    
+    staff = relationship('Staff', back_populates='shifts')
+
 class ShiftRequest(Base):
     __tablename__ = "shift_requests"
 
@@ -93,7 +104,36 @@ class Store(Base):
     name = Column(String(255), unique=True, nullable=False)
     open_hours = Column(Time, nullable=False)  # 修正：open_time → open_hours
     close_hours = Column(Time, nullable=False)  # 修正：close_time → close_hours
-
-    
-
     staffs = relationship('Staff', back_populates='store')
+    default_skill_requirements = relationship("StoreDefaultSkillRequirement", back_populates="store")
+    skill_overrides = relationship("StoreSkillOverride", back_populates="store")
+
+class StoreDefaultSkillRequirement(Base):
+    __tablename__ = "store_default_skill_requirements"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    day_type = Column(String(20), nullable=False)  # "平日", "金曜", "土曜", "日曜"
+    hour = Column(Integer, nullable=False)  # 0〜23
+
+    kitchen_a = Column(Integer, default=0, nullable=False)
+    kitchen_b = Column(Integer, default=0, nullable=False)
+    drink = Column(Integer, default=0, nullable=False)
+    hall = Column(Integer, default=0, nullable=False)
+    leadership = Column(Integer, default=0, nullable=False)
+    store = relationship("Store", back_populates="default_skill_requirements")
+
+
+class StoreSkillOverride(Base):
+    __tablename__ = "store_skill_overrides"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    hour = Column(Integer, nullable=False)  # 0〜23
+    kitchen_a = Column(Integer, default=0, nullable=False)
+    kitchen_b = Column(Integer, default=0, nullable=False)
+    drink = Column(Integer, default=0, nullable=False)
+    hall = Column(Integer, default=0, nullable=False)
+    leadership = Column(Integer, default=0, nullable=False)
+    store = relationship("Store", back_populates="skill_overrides")

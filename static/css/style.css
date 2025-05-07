@@ -230,3 +230,8 @@ button:hover {
 .staff-table input[readonly] {
     background-color: #f9f9f9;
 }
+
+.small-text {
+    font-size: 8px;
+    /* フォントサイズを小さく */
+}

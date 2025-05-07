@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>{{ store.name }} - デフォルトスキルポイント設定</h2>
+
+<form method="post" action="/store_settings/default/save">
+  {% for day_type in ["平日", "金曜", "土曜", "日曜"] %}
+    <h3>{{ day_type }}</h3>
+    <table border="1">
+      <tr>
+        <th>時間</th>
+        <th>kitchen_a</th>
+        <th>kitchen_b</th>
+        <th>drink</th>
+        <th>hall</th>
+        <th>leadership</th>
+      </tr>
+      {% for hour in range(0, 24) %}
+        <tr>
+          <td>{{ "%02d:00"|format(hour) }}</td>
+          {% for i in range(1, 6) %}
+            <td>
+              <input type="number" name="{{ day_type }}_{{ hour }}_skill{{ i }}"
+                     value="{{ settings[day_type][hour]['skill' + i|string]|default(0) }}"
+                     min="0" max="10" style="width: 4em;">
+            </td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </table>
+  {% endfor %}
+
+  <button type="submit">保存する</button>
+</form>
+
+{% endblock %}

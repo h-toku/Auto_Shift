@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block header_title %}シフト希望提出{% endblock %}
+
+{% block content %}
+
+<h1>{{ store.name }} の {{ date }} 詳細設定</h1>
+
+<form method="post">
+  <input type="hidden" name="date" value="{{ date }}">
+
+  <table border="1">
+    <tr>
+      <th>時刻</th>
+      <th>kitchen_a</th>
+      <th>kitchen_b</th>
+      <th>hall</th>
+      <th>drink</th>
+      <th>leadership</th>
+    </tr>
+    {% for hour in range(24) %}
+    <tr>
+      <td>{{ "%02d:00"|format(hour) }}</td>
+      {% set override = override_map.get(hour) %}
+      {% for i in range(1,6) %}
+        <td>
+          <input type="number" name="hour_{{ hour }}_skill{{ i }}" value="{{ getattr(override, 'skill' ~ i ~ '_required', '') if override else '' }}">
+        </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+  <button type="submit">保存</button>
+</form>
+{% endblock %}

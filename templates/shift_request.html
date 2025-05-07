@@ -25,72 +25,106 @@
 {% set first_half = dates[:mid] %}
 {% set second_half = dates[mid:] %}
 
-  <form method="post" action="/shift_request/update">
-    <table class="calendar-table">
-      <tbody>
-        <!-- 前半：日付 -->
-        <tr>
-          <td>日付</td>
-          {% for date in first_half %}
-          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-            {{ date.day }}<br>{{ date.weekday }}
-          </td>
-          {% endfor %}
-        </tr>
-        <!-- 前半：希望 -->
-        <tr>
-          <td>希望</td>
-          {% for date in first_half %}
-          <td>
-            {% if date.editable %}
-              <select name="status_{{ date.iso }}">
-                <option value="">--</option>
-                <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
-                <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
-                <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
-              </select><br>
-              <input type="time" name="start_{{ date.iso }}" value="{{ shift_data[date.iso].start }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-              〜
-              <input type="time" name="end_{{ date.iso }}" value="{{ shift_data[date.iso].end }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-            {% else %}
-              {{ shift_data[date.iso].status or '-' }}
-            {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
+<form method="post" action="/shift_request/update">
+  <table class="calendar-table">
+    <tbody>
+      <!-- 前半：日付 -->
+      <tr>
+        <td>日付</td>
+        {% for date in first_half %}
+        <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+          {{ date.day }}<br>{{ date.weekday }}
+        </td>
+        {% endfor %}
+      </tr>
       
-        <!-- 後半：日付 -->
-        <tr>
-          <td>日付</td>
-          {% for date in second_half %}
-          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-            {{ date.day }}<br>{{ date.weekday }}
-          </td>
-          {% endfor %}
-        </tr>
-        <!-- 後半：希望 -->
-        <tr>
-          <td>希望</td>
-          {% for date in second_half %}
-          <td>
-            {% if date.editable %}
-              <select name="status_{{ date.iso }}">
-                <option value="">--</option>
-                <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
-                <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
-                <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
-              </select><br>
-              <input type="time" name="start_{{ date.iso }}" value="{{ shift_data[date.iso].start }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-              〜
-              <input type="time" name="end_{{ date.iso }}" value="{{ shift_data[date.iso].end }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-            {% else %}
-              {{ shift_data[date.iso].status or '-' }}
-            {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-      </tbody>      
-    </table>
+      <!-- 前半：希望 -->
+      <tr>
+        <td>希望</td>
+        {% for date in first_half %}
+        <td>
+          {% if date.editable %}
+            <select name="status_{{ date.iso }}">
+              <option value="">--</option>
+              <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
+              <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+            </select><br>
+
+            <!-- 開始時間 -->
+            <select name="start_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              <option value="">--</option>
+              {% for t in date.time_options %}
+                <option value="{{ t }}" {% if shift_data[date.iso].start == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+            
+            〜
+            
+            <!-- 終了時間 -->
+            <select name="end_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              <option value="">--</option>
+              {% for t in date.time_options %}
+                <option value="{{ t }}" {% if shift_data[date.iso].end == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+
+          {% else %}
+            {{ shift_data[date.iso].status or '-' }}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <!-- 後半：日付 -->
+      <tr>
+        <td>日付</td>
+        {% for date in second_half %}
+        <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+          {{ date.day }}<br>{{ date.weekday }}
+        </td>
+        {% endfor %}
+      </tr>
+
+      <!-- 後半：希望 -->
+      <tr>
+        <td>希望</td>
+        {% for date in second_half %}
+        <td>
+          {% if date.editable %}
+            <select name="status_{{ date.iso }}">
+              <option value="">--</option>
+              <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
+              <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+            </select><br>
+
+            <!-- 開始時間 -->
+            <select name="start_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              <option value="">--</option>
+              {% for t in date.time_options %}
+                <option value="{{ t }}" {% if shift_data[date.iso].start == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+            
+            〜
+            
+            <!-- 終了時間 -->
+            <select name="end_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+              <option value="">--</option>
+              {% for t in date.time_options %}
+                <option value="{{ t }}" {% if shift_data[date.iso].end == t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+
+          {% else %}
+            {{ shift_data[date.iso].status or '-' }}
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+    </tbody>
+  </table>
 
     {% if editable %}
     <div style="margin-top: 20px;">
@@ -101,20 +135,29 @@
 </div>
 
 <script>
-  // ステータス変更に応じて時間入力の有効/無効を切り替える
-  document.querySelectorAll("select[name^='status_']").forEach(select => {
-    select.addEventListener("change", (e) => {
-      const iso = select.name.split("_")[1];
-      const start = document.querySelector(`input[name="start_${iso}"]`);
-      const end = document.querySelector(`input[name="end_${iso}"]`);
-      const isTime = select.value === "time";
-      if (start && end) {
-        start.disabled = !isTime;
-        end.disabled = !isTime;
-      }
+  document.addEventListener('DOMContentLoaded', function () {
+    const allStatusSelects = document.querySelectorAll('select[name^="status_"]');
+
+    allStatusSelects.forEach(statusSelect => {
+      const dateIso = statusSelect.name.replace('status_', '');
+      const startSelect = document.querySelector(`select[name="start_${dateIso}"]`);
+      const endSelect = document.querySelector(`select[name="end_${dateIso}"]`);
+
+      const toggleTimeInputs = () => {
+        const isTime = statusSelect.value === 'time';
+        startSelect.disabled = !isTime;
+        endSelect.disabled = !isTime;
+      };
+
+      // 初期状態にも反映
+      toggleTimeInputs();
+
+      // 変更時にも反映
+      statusSelect.addEventListener('change', toggleTimeInputs);
     });
   });
 </script>
+
 {% endblock %}
 
 

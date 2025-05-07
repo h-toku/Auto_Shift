@@ -10,10 +10,10 @@ import dotenv
 import jpholiday
 import calendar
 from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift
+from models import Store, Staff, ShiftRequest, Shift, ShiftResult, Shift, StoreSkillOverride, StoreDefaultSkillRequirement
 from database import SessionLocal, engine
 from utils import get_common_context
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 from schemas import ShiftRequestUpdate
 
 dotenv.load_dotenv()
@@ -70,7 +70,7 @@ async def login(request: Request, db: Session = Depends(get_db)):
     request.session['store_name'] = user.store.name
     request.session['employment_type'] = user.employment_type
     request.session['staff_id'] = user.id
-    request.session['store_id'] = store_id
+    request.session['store_id'] = user.store_id
 
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -259,6 +259,30 @@ async def shift_request_form(
 
     staff_id = request.session.get("staff_id")
 
+    staff = db.query(Staff).filter_by(id=staff_id).first()
+    store = staff.store
+    if not store:
+        raise ValueError("店舗情報が見つかりません")
+
+    def generate_time_options(open_time, close_time):
+        start_dt = datetime.combine(date.today(), open_time)
+        end_dt = datetime.combine(date.today(), close_time)
+
+        # close_timeが 00:00 の場合は翌日0時とみなす
+        if close_time == time(0, 0):
+            end_dt += timedelta(days=1)
+
+        options = []
+        while start_dt <= end_dt:
+            options.append(start_dt.strftime("%H:%M"))
+            start_dt += timedelta(minutes=30)
+
+        # 24:00 や 25:00 は 00:00 以降として扱う
+        if close_time == time(0, 0):
+            options.append("00:00")
+
+        return options
+
     # デフォルトは翌月
     today = datetime.today()
     if not year or not month:
@@ -281,7 +305,8 @@ async def shift_request_form(
             "is_today": d == today.date(),
             "is_saturday": d.weekday() == 5,
             "is_sunday": d.weekday() == 6,
-            "editable": True  # 自分の希望を提出する画面なら常に編集可能
+            "editable": True,
+            "time_options": generate_time_options(store.open_hours, store.close_hours)
         })
         d += timedelta(days=1)
 
@@ -320,7 +345,7 @@ async def shift_request_form(
         "months": months,
         "selected_year": year,
         "selected_month": month,
-        "editable": True
+        "editable": True,
     })
     return templates.TemplateResponse("shift_request.html", context)
 
@@ -422,43 +447,50 @@ async def shift_request_overview(
     store_id = current_staff.store_id
     today = date.today()
     if not year or not month:
-        year, month = today.year, today.month
+        year, month = today.year, today.month +1
+    
+    store = current_staff.store
+    if not store:
+        raise ValueError("店舗情報が見つかりません")
 
-    # その月の日数
-    last_day = calendar.monthrange(year, month)[1]
 
-    # スタッフリスト
+    # スタッフ情報の取得
     staff_list = db.query(Staff).filter(Staff.store_id == store_id).all()
     staff_ids = [s.id for s in staff_list]
     staff_map = {s.id: s.name for s in staff_list}
 
     # シフトリクエストを取得
-    shift_requests = db.query(ShiftRequest).filter(
-        ShiftRequest.year == year,
-        ShiftRequest.month == month,
-        ShiftRequest.staff_id.in_(staff_ids)
-    ).all()
+    shift_requests = []
+    if staff_ids:
+        shift_requests = db.query(ShiftRequest).filter(
+            ShiftRequest.year == year,
+            ShiftRequest.month == month,
+            ShiftRequest.staff_id.in_(staff_ids)
+        ).all()
 
-    # 日付ごとのシフト情報をまとめる
-    day_data = []
-    for d in range(1, last_day + 1):
-        current = date(year, month, d)
-        weekday = current.strftime("%a")
-        style_class = ""
-        if current == today:
-            style_class = "today"
-        elif current.weekday() == 5:
-            style_class = "saturday"
-        elif current.weekday() == 6 or jpholiday.is_holiday(current):
-            style_class = "sunday"
-
-        # この日に該当するシフトリクエスト
+    # カレンダー日付生成
+    first_day = date(year, month, 1)
+    dates = []
+    d = first_day
+    while d.month == month:
         requests_for_day = []
         for r in shift_requests:
-            if r.day == d:
+            if r.day == d.day and r.status is not None:
                 status = r.status
                 if status == "time":
-                    status_display = f"{r.start_time}～{r.end_time}"
+                    def format_time(t):
+                        if t.minute == 0:
+                            return str(t.hour)
+                        elif t.minute == 30:
+                            return f"{t.hour}半"
+                        else:
+                            return t.strftime("%H:%M")
+                    start_str = format_time(r.start_time)
+                    if r.end_time == store.close_hours:
+                        end_str = "L"
+                    else:
+                        end_str = format_time(r.end_time)
+                    status_display = f"{start_str}〜{end_str}"
                 else:
                     status_display = status
                 requests_for_day.append({
@@ -466,14 +498,284 @@ async def shift_request_overview(
                     "status": status_display
                 })
 
-        day_data.append({
-            "day": d,
-            "weekday": weekday,
-            "style_class": style_class,
+        dates.append({
+            "day": d.day,
+            "iso": d.isoformat(),
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][d.weekday()],
+            "is_today": d == today,
+            "is_saturday": d.weekday() == 5,
+            "is_sunday": d.weekday() == 6,
+            "editable": True,
             "requests": requests_for_day
         })
-    
+        d += timedelta(days=1)
+
+    # 年・月の選択肢生成
+    current_year = today.year
+    years = [current_year - 1, current_year, current_year + 1]
+    months = list(range(1, 13))
+
     context = get_common_context(request)
-    context.update({"request": request, "days": day_data, "year": year, "month": month })
+    context.update({"request": request, "dates": dates, "years": years, "months": months, "selected_year": year, "selected_month": month})
 
     return templates.TemplateResponse("shift_request_overview.html", context)
+
+@app.get("/shift_result")
+async def shift_result_page(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = None,
+    month: int = None
+):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
+
+    store = current_staff.store
+    if not store:
+        raise ValueError("店舗情報が見つかりません")
+
+    # シフト取得
+    shifts = db.query(Shift).filter_by(store_id=store.id, year=year, month=month).all()
+    staffs = db.query(Staff).filter_by(store_id=store.id).all()
+
+    # 表示用に変換
+    shift_by_day = {}
+    for shift in shifts:
+        key = (shift.day, shift.staff_id)
+        shift_by_day[key] = {
+            "start_time": shift.start_time.strftime("%H:%M") if shift.start_time else "",
+            "end_time": shift.end_time.strftime("%H:%M") if shift.end_time else ""
+        }
+
+    context = get_common_context(request)
+    context.update({
+        "year": year,
+        "month": month,
+        "days": list(range(1, 32)),
+        "staffs": staffs,
+        "shift_by_day": shift_by_day,
+    })
+
+    return templates.TemplateResponse("shift_result.html", context)
+
+@app.post("/shift_result")
+async def save_shift_result(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = Form(...),
+    month: int = Form(...)
+):
+    form = await request.form()
+    current_staff = get_current_staff(request, db)
+
+    store_id = current_staff.store_id
+    db.query(ShiftResult).filter_by(store_id=store_id, year=year, month=month).delete()
+
+    for key, value in form.items():
+        if "-" not in key:
+            continue
+        day_str, staff_id_str, field = key.split("-")  # 例: 15-3-start
+        day = int(day_str)
+        staff_id = int(staff_id_str)
+
+        shift = db.query(ShiftResult).filter_by(
+            store_id=store_id, year=year, month=month, day=day, staff_id=staff_id
+        ).first()
+
+        if not shift:
+            shift = ShiftResult(
+                store_id=store_id,
+                year=year,
+                month=month,
+                day=day,
+                staff_id=staff_id
+            )
+            db.add(shift)
+
+        if field == "start":
+            shift.start_time = datetime.strptime(value, "%H:%M").time() if value else None
+        elif field == "end":
+            shift.end_time = datetime.strptime(value, "%H:%M").time() if value else None
+
+    db.commit()
+    return RedirectResponse(url=f"/shift_result?year={year}&month={month}", status_code=303)
+
+@app.post("/publish_shift")
+async def publish_shift(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = Form(...),
+    month: int = Form(...)
+):
+    current_staff = get_current_staff(request, db)
+
+    # すべての ShiftResult を ShiftCalendar にコピー（公開用）
+    results = db.query(ShiftResult).filter_by(store_id=current_staff.store_id, year=year, month=month).all()
+
+    for result in results:
+        calendar = Shift(
+            staff_id=result.staff_id,
+            store_id=result.store_id,
+            year=result.year,
+            month=result.month,
+            day=result.day,
+            start_time=result.start_time,
+            end_time=result.end_time
+        )
+        db.add(calendar)
+
+    db.commit()
+    return RedirectResponse(url="/", status_code=303)
+
+@app.get("/store_settings/default")
+async def default_skill_settings(request: Request, db: Session = Depends(get_db)):
+    staff = get_current_staff(request, db)
+    if not staff or staff.employment_type != "社員":
+        return RedirectResponse(url="/login", status_code=303)
+
+    store = staff.store
+    if not store:
+        return {"error": "店舗が見つかりません"}
+
+    # 既存のスキル設定取得
+    existing_settings = db.query(StoreDefaultSkillRequirement).filter_by(store_id=store.id).all()
+
+    settings = {
+        "平日": {}, "金曜": {}, "土曜": {}, "日曜": {}
+    }
+    for s in existing_settings:
+        settings[s.day_type][s.hour] = {
+            "kitchen_a": s.kitchen_a,
+            "kitchen_b": s.kitchen_b,
+            "drink": s.drink,
+            "hall": s.hall,
+            "leadership": s.leadership,
+        }
+    
+    context = get_common_context(request)
+    context.update({
+        "request": request,
+        "store": store,
+        "settings": settings,
+    })
+
+    return templates.TemplateResponse("store_default_settings.html", context)
+
+
+@app.post("/store_settings/default/save")
+async def save_default_settings(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    form = await request.form()
+    staff = get_current_staff(request, db)
+    if not staff or staff.employment_type != "社員":
+        return RedirectResponse(url="/login", status_code=303)
+
+    store = staff.store
+    if not store:
+        return {"error": "店舗が見つかりません"}
+
+    # 既存設定削除
+    db.query(StoreDefaultSkillRequirement).filter_by(store_id=store.id).delete()
+
+    for day_type in ["平日", "金曜", "土曜", "日曜"]:
+        for hour in range(24):
+            skill_values = {
+                f"{day_type}_{hour}_skill{i}": int(form.get(f"{day_type}_{hour}_skill{i}", 0))
+                for i in range(1, 6)
+            }
+
+            new_setting = StoreDefaultSkillRequirement(
+                store_id=store.id,
+                day_type=day_type,
+                hour=hour,
+                **{
+                    f"skill{i}_required": skill_values[f"{day_type}_{hour}_skill{i}"]
+                    for i in range(1, 6)
+                }
+            )
+            db.add(new_setting)
+
+    db.commit()
+    return RedirectResponse("/store_settings/default", status_code=303)
+
+@app.get("/store_settings/detail")
+def detail_settings(
+    request: Request,
+    year: int,
+    month: int,
+    day: int,
+    db: Session = Depends(get_db)
+):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみアクセス可能")
+
+    store = current_staff.store
+    selected_date = date(year, month, day)
+
+    # 既存オーバーライド取得
+    overrides = db.query(StoreSkillOverride).filter_by(
+        store_id=store.id,
+        date=selected_date
+    ).all()
+    override_map = {o.hour: o for o in overrides}
+
+    context = get_common_context(request)
+    context.update({
+        "request": request,
+        "store": store,
+        "date": selected_date,
+        "override_map": override_map,
+    })
+
+    return templates.TemplateResponse("store_detail_settings.html", context)
+
+@app.post("/store_settings/detail")
+async def save_detail_settings(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    form = await request.form()
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみ")
+
+    store = current_staff.store
+    date_str = form.get("date")  # 例：2025-06-10
+    selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+
+    # 時間帯分ループ
+    for hour in range(24):
+        prefix = f"hour_{hour}_"
+        values = []
+        for i in range(1, 6):
+            val = form.get(f"{prefix}skill{i}")
+            values.append(int(val) if val else None)
+
+        if any(v is not None for v in values):
+            # 既存があれば更新、なければ新規
+            override = db.query(StoreSkillOverride).filter_by(
+                store_id=store.id,
+                date=selected_date,
+                hour=hour
+            ).first()
+            if override:
+                override.kitchen_a, override.kitchen_b, override.hall, override.drink, override.leardership = values
+            else:
+                new_override = StoreSkillOverride(
+                    store_id=store.id,
+                    date=selected_date,
+                    hour=hour,
+                    kitchen_a=values[0],
+                    kitchen_b=values[1],
+                    hall=values[2],
+                    drink=values[3],
+                    leardership=values[4],
+                )
+                db.add(new_override)
+
+    db.commit()
+    return RedirectResponse(url=f"/store_settings/detail?year={selected_date.year}&month={selected_date.month}&day={selected_date.day}", status_code=303)
