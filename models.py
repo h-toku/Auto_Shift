@@ -123,7 +123,6 @@ class StoreDefaultSkillRequirement(Base):
     leadership = Column(Integer, default=0, nullable=False)
     store = relationship("Store", back_populates="default_skill_requirements")
 
-
 class StoreSkillOverride(Base):
     __tablename__ = "store_skill_overrides"
 
