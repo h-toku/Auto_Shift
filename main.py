@@ -10,7 +10,7 @@ import dotenv
 import jpholiday
 import calendar
 from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift, ShiftResult, Shift, StoreSkillOverride, StoreDefaultSkillRequirement
+from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreSkillOverride, StoreDefaultSkillRequirement
 from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
@@ -570,7 +570,7 @@ async def save_shift_result(
     current_staff = get_current_staff(request, db)
 
     store_id = current_staff.store_id
-    db.query(ShiftResult).filter_by(store_id=store_id, year=year, month=month).delete()
+    db.query(Shiftresult).filter_by(store_id=store_id, year=year, month=month).delete()
 
     for key, value in form.items():
         if "-" not in key:
@@ -579,12 +579,12 @@ async def save_shift_result(
         day = int(day_str)
         staff_id = int(staff_id_str)
 
-        shift = db.query(ShiftResult).filter_by(
+        shift = db.query(Shiftresult).filter_by(
             store_id=store_id, year=year, month=month, day=day, staff_id=staff_id
         ).first()
 
         if not shift:
-            shift = ShiftResult(
+            shift = Shiftresult(
                 store_id=store_id,
                 year=year,
                 month=month,
@@ -611,7 +611,7 @@ async def publish_shift(
     current_staff = get_current_staff(request, db)
 
     # すべての ShiftResult を ShiftCalendar にコピー（公開用）
-    results = db.query(ShiftResult).filter_by(store_id=current_staff.store_id, year=year, month=month).all()
+    results = db.query(Shiftresult).filter_by(store_id=current_staff.store_id, year=year, month=month).all()
 
     for result in results:
         calendar = Shift(

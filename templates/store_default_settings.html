@@ -2,6 +2,7 @@
 {% block content %}
 
 <h2>{{ store.name }} - デフォルトスキルポイント設定</h2>
+<a href="/store_settings/detail">詳細設定</a>
 
 <form method="post" action="/store_settings/default/save">
   {% for day_type in ["平日", "金曜", "土曜", "日曜"] %}

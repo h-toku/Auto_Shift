@@ -34,6 +34,7 @@ class Staff(Base):
     
     shifts = relationship('Shift', back_populates='staff')
     shift_requests = relationship("ShiftRequest", back_populates="staff")
+    shift_results = relationship("Shiftresult", back_populates="staff")
 
     # 0〜5に制限をかける
     __table_args__ = (
@@ -54,6 +55,7 @@ class Shift(Base):
     end_time = Column(Time)
     
     staff = relationship('Staff', back_populates='shifts')
+    shift_results = relationship("Shiftresult", back_populates="shift")
 
 class Shiftresult(Base):
     __tablename__ = 'shift_results'
@@ -64,7 +66,9 @@ class Shiftresult(Base):
     start_time = Column(Time)
     end_time = Column(Time)
     
-    staff = relationship('Staff', back_populates='shifts')
+    staff = relationship('Staff', back_populates='shift_results')
+    shift_id = Column(Integer, ForeignKey("shifts.id"))
+    shift = relationship("Shift", back_populates="shift_results")
 
 class ShiftRequest(Base):
     __tablename__ = "shift_requests"
