@@ -5,13 +5,7 @@
 {% block content %}
 <h2>{{ store_name }}</h2>
 
-<button id="editButton" onclick="toggleEditMode()">編集</button>
-
-<button type="submit">保存</button>
-
-<button type="button" onclick="cancelEdit()">キャンセル</button>
-
-<form id="staffForm" action="/staff/update_bulk" method="POST" class="hidden">  <!-- hiddenクラスを使用 -->
+<form id="staffForm" action="/staff/update_bulk" method="POST">  
 
 {% if staffs %}
 <table class="staff-table">
@@ -26,64 +20,67 @@
             <th>ログイン<br>コード</th>
             <th>パスワード</th>
             <th>勤務形態</th>
+            <th>削除</th>
         </tr>
     </thead>
     <tbody>
     {% for staff in staffs %}
         <tr id="staff_{{ staff.id }}">
-            <td><input type="text" name="staffs[{{ staff.id }}][name]" value="{{ staff.name if staff.name is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][gender]" value="{{ staff.gender if staff.gender is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_a]" value="{{ staff.kitchen_a if staff.kitchen_a is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_b]" value="{{ staff.kitchen_b if staff.kitchen_b is not none else '未設定' }}" readonly></td>
-            <td><input type="number" name="staffs[{{ staff.id }}][hall]" value="{{ staff.hall if staff.hall is not none else '未設定' }}" readonly></td>
-            <td><input type="number" name="staffs[{{ staff.id }}][leadership]" value="{{ staff.leadership if staff.leadership is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][login_code]" value="{{ staff.login_code if staff.login_code is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][password]" value="{{ staff.password if staff.password is not none else '未設定' }}" readonly></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][employment_type]" value="{{ staff.employment_type if staff.employment_type is not none else '未設定' }}" readonly></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][name]" value="{{ staff.name if staff.name is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][gender]" value="{{ staff.gender if staff.gender is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_a]" value="{{ staff.kitchen_a if staff.kitchen_a is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_b]" value="{{ staff.kitchen_b if staff.kitchen_b is not none else '未設定' }}" required></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][hall]" value="{{ staff.hall if staff.hall is not none else '未設定' }}" required></td>
+            <td><input type="number" name="staffs[{{ staff.id }}][leadership]" value="{{ staff.leadership if staff.leadership is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][login_code]" value="{{ staff.login_code if staff.login_code is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][password]" value="{{ staff.password if staff.password is not none else '未設定' }}" required></td>
+            <td><input type="text" name="staffs[{{ staff.id }}][employment_type]" value="{{ staff.employment_type if staff.employment_type is not none else '未設定' }}" required></td>
+            <!-- 削除ボタンは常に表示 -->
+            <td><button type="button" class="deleteButton" data-staff-id="{{ staff.id }}" data-staff-name="{{ staff.name }}">削除</button></td>
             <input type="hidden" name="staffs[{{ staff.id }}][id]" value="{{ staff.id }}">
         </tr>
     {% endfor %}
-</tbody>
+    </tbody>
 </table>
 {% else %}
 <p>スタッフ情報がありません。</p>
 {% endif %}
 
+<!-- 保存ボタンとキャンセルボタン -->
+<button type="submit" id="saveButton">保存</button>
+<button type="button" id="cancelButton" onclick="cancelChanges()">キャンセル</button>
 </form>
+
 {% endblock %}
 
-<!-- CSSとJavaScript -->
-<style>
-    .hidden { display: none; }
-</style>
-
 <script>
-function toggleEditMode() {
-    const form = document.getElementById('staffForm');
-    const editButton = document.getElementById('editButton');
-    const inputs = form.querySelectorAll('input');
-
-    // 編集モードの切り替え
-    if (form.classList.contains('hidden')) {
-        form.classList.remove('hidden'); // フォームを表示
-        editButton.innerText = '終了';
-        inputs.forEach(input => input.removeAttribute('readonly')); // 編集可能にする
-    } else {
-        form.classList.add('hidden'); // フォームを非表示
-        editButton.innerText = '編集';
-        inputs.forEach(input => input.setAttribute('readonly', true)); // 読み取り専用に戻す
-    }
-}
-
-function cancelEdit() {
-    const form = document.getElementById('staffForm');
-    const inputs = form.querySelectorAll('input');
-    
-    // 編集をキャンセルして元の状態に戻す
-    inputs.forEach(input => {
-        input.setAttribute('readonly', true);
+    // 保存ボタンの確認ダイアログ
+    document.getElementById('saveButton').addEventListener('click', function(event) {
+        if (!confirm('変更を保存しますか？')) {
+            event.preventDefault(); // 保存をキャンセル
+        }
     });
-    form.classList.add('hidden'); // フォームを非表示
-    document.getElementById('editButton').innerText = '編集';
-}
+
+    // キャンセルボタンの確認ダイアログ
+    function cancelChanges() {
+        if (confirm('変更を破棄しますか？')) {
+            // フォームの内容を元に戻す
+            document.getElementById('staffForm').reset();
+        }
+    }
+
+    // 削除確認ダイアログ
+    document.addEventListener('DOMContentLoaded', function() {
+        const deleteButtons = document.querySelectorAll('.deleteButton');
+        
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const staffId = button.dataset.staffId;
+                const staffName = button.dataset.staffName;
+                if (confirm(staffName + 'の登録情報を削除しますか？')) {
+                    window.location.href = '/staff/delete/' + staffId;  // 削除処理用URLにリダイレクト
+                }
+            });
+        });
+    });
 </script>

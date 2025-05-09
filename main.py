@@ -155,6 +155,14 @@ async def logout(request: Request):
         request.session.pop(key, None)
     return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
 
+@app.get("/salary_estimate")
+async def salary_estimate(request: Request, db: Session = Depends(get_db)):
+    current_staff = get_current_staff(request, db)
+
+    context = get_common_context(request)
+    context.update({"request": request})
+    return templates.TemplateResponse("salary_estimate.html", context)
+
 @app.get("/staff/register")
 async def get_register_form(request: Request, db: Session = Depends(get_db)):
     current_staff = get_current_staff(request, db)
@@ -215,30 +223,46 @@ async def staff_manage(request: Request, db: Session = Depends(get_db), user=Dep
     context.update({"request": request, "staffs": staff_outs})
     return templates.TemplateResponse("staff_manage.html", context)
 
-@app.post("/staff/update_bulk")
-async def update_bulk_staff(
-    updates: list[dict],
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    current_staff = get_current_staff(request, db)
-    if current_staff is None or current_staff.employment_type != "社員":
-        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
+@app.get("/staff/delete/{staff_id}")
+async def delete_staff(staff_id: int, db: Session = Depends(get_db)):
+    staff = db.query(Staff).filter(Staff.id == staff_id).first()
+    if staff:
+        db.delete(staff)
+        db.commit()
+        return RedirectResponse(url="/staff/manage", status_code=303)
+    return {"error": "スタッフが見つかりません"}
 
-    for item in updates:
-        staff = db.query(Staff).filter(
-            Staff.id == item["id"],
-            Staff.store_id == current_staff.store_id
-        ).first()
+@app.post("/staff/update_bulk")
+async def update_staff_bulk(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    form_data = dict(form)
+
+    # データは "fieldname-{id}" という形式で渡ってくる前提（例：name-3, kitchen_a-3）
+    staff_updates: Dict[int, Dict[str, str]] = {}
+
+    for key, value in form_data.items():
+        if "-" not in key:
+            continue
+        field, staff_id_str = key.rsplit("-", 1)
+        try:
+            staff_id = int(staff_id_str)
+        except ValueError:
+            continue
+        if staff_id not in staff_updates:
+            staff_updates[staff_id] = {}
+        staff_updates[staff_id][field] = value
+
+    # DB更新
+    for staff_id, fields in staff_updates.items():
+        staff = db.query(Staff).filter(Staff.id == staff_id).first()
         if not staff:
             continue
-
-        for key in ["name", "gender", "employment_type", "kitchen_a", "kitchen_b", "hall", "leadership"]:
-            if key in item:
-                setattr(staff, key, item[key])
-
+        for field, value in fields.items():
+            if hasattr(staff, field):
+                setattr(staff, field, value)
     db.commit()
-    return {"status": "success"}
+
+    return RedirectResponse(url="/staff/manage", status_code=303)
 
 
 @app.get("/shift_request")
@@ -613,22 +637,12 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
     if not store:
         return {"error": "店舗が見つかりません"}
 
-    # 既存のスキル設定取得
     existing_settings = db.query(StoreDefaultSkillRequirement).filter_by(store_id=store.id).all()
 
-    settings = {
-        "平日": {}, "金曜": {}, "土曜": {}, "日曜": {}
-    }
+    settings = {}
     for s in existing_settings:
-        for hour in range(s.peak_start_hour, s.peak_end_hour):
-            settings[s.day_type][hour] = {
-                "kitchen_a": s.kitchen_a,
-                "kitchen_b": s.kitchen_b,
-                "hall": s.hall,
-                "leadership": s.leadership,
-            }
+        settings[s.day_type] = s  # 1日1レコード
 
-    
     context = get_common_context(request)
     context.update({
         "request": request,
@@ -638,12 +652,8 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
 
     return templates.TemplateResponse("store_default_settings.html", context)
 
-
 @app.post("/store_settings/default/save")
-async def save_default_settings(
-    request: Request,
-    db: Session = Depends(get_db),
-):
+async def save_default_settings(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     staff = get_current_staff(request, db)
     if not staff or staff.employment_type != "社員":
@@ -653,26 +663,21 @@ async def save_default_settings(
     if not store:
         return {"error": "店舗が見つかりません"}
 
-    # 既存設定削除
     db.query(StoreDefaultSkillRequirement).filter_by(store_id=store.id).delete()
 
-    for day_type in ["平日", "金曜", "土曜", "日曜"]:
-        for hour in range(24):
-            skill_values = {
-                f"{day_type}_{hour}_skill{i}": int(form.get(f"{day_type}_{hour}_skill{i}", 0))
-                for i in range(1, 6)
-            }
-
-            new_setting = StoreDefaultSkillRequirement(
-                store_id=store.id,
-                day_type=day_type,
-                hour=hour,
-                **{
-                    f"skill{i}_required": skill_values[f"{day_type}_{hour}_skill{i}"]
-                    for i in range(1, 6)
-                }
-            )
-            db.add(new_setting)
+    for day_type in ["平日", "金曜日", "土曜日", "日曜日"]:
+        new_setting = StoreDefaultSkillRequirement(
+            store_id=store.id,
+            day_type=day_type,
+            peak_start_hour=int(form.get(f"{day_type}_peak_start", 10)),
+            peak_end_hour=int(form.get(f"{day_type}_peak_end", 14)),
+            kitchen_a=form.get(f"{day_type}_kitchen_a", "C"),
+            kitchen_b=form.get(f"{day_type}_kitchen_b", "C"),
+            hall=int(form.get(f"{day_type}_hall", 0)),
+            people=int(form.get(f"{day_type}_people", 0)),
+            leadership=int(form.get(f"{day_type}_leadership", 0)),
+        )
+        db.add(new_setting)
 
     db.commit()
     return RedirectResponse("/store_settings/default", status_code=303)

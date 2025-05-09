@@ -4,32 +4,42 @@
 <h2>{{ store.name }} - 店舗設定</h2>
 
 <form method="post" action="/store_settings/default/save">
-  {% for day_type in ["平日", "金曜", "土曜", "日曜"] %}
-    <h3>{{ day_type }}</h3>
-    <table border="1">
-      <tr>
-        <th>時間</th>
-        <th>kitchen_a</th>
-        <th>kitchen_b</th>
-        <th>drink</th>
-        <th>hall</th>
-        <th>leadership</th>
-      </tr>
-      {% for hour in range(0, 24) %}
-        <tr>
-          <td>{{ "%02d:00"|format(hour) }}</td>
-          {% for i in range(1, 6) %}
-            <td>
-              <input type="number" name="{{ day_type }}_{{ hour }}_skill{{ i }}"
-                     value="{{ settings[day_type][hour]['skill' + i|string]|default(0) }}"
-                     min="0" max="10" style="width: 4em;">
-            </td>
+  <table border="1">
+    <tr>
+      <th>曜日</th>
+      <th>ピーク開始</th>
+      <th>ピーク終了</th>
+      <th>kitchen_a</th>
+      <th>kitchen_b</th>
+      <th>hall</th>
+      <th>people</th>
+      <th>leadership</th>
+    </tr>
+    {% for day_type in ["平日", "金曜日", "土曜日", "日曜日"] %}
+    <tr>
+      <td>{{ day_type }}</td>
+      <td><input type="number" name="{{ day_type }}_peak_start" value="{{ settings[day_type].peak_start_hour|default(10) }}" min="0" max="23"></td>
+      <td><input type="number" name="{{ day_type }}_peak_end" value="{{ settings[day_type].peak_end_hour|default(14) }}" min="1" max="24"></td>
+      <td>
+        <select name="{{ day_type }}_kitchen_a">
+          {% for val in ["A", "B", "C"] %}
+            <option value="{{ val }}" {% if settings[day_type].kitchen_a == val %}selected{% endif %}>{{ val }}</option>
           {% endfor %}
-        </tr>
-      {% endfor %}
-    </table>
-  {% endfor %}
-
+        </select>
+      </td>
+      <td>
+        <select name="{{ day_type }}_kitchen_b">
+          {% for val in ["A", "B", "C"] %}
+            <option value="{{ val }}" {% if settings[day_type].kitchen_b == val %}selected{% endif %}>{{ val }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td><input type="number" name="{{ day_type }}_hall" value="{{ settings[day_type].hall|default(0) }}" min="0"></td>
+      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].people|default(0) }}" min="0"></td>
+      <td><input type="number" name="{{ day_type }}_leadership" value="{{ settings[day_type].leadership|default(0) }}" min="0"></td>
+    </tr>
+    {% endfor %}
+  </table>
   <button type="submit">保存する</button>
 </form>
 

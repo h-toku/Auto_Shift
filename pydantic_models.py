@@ -107,6 +107,8 @@ class StaffOut(BaseModel):
     kitchen_b: str
     hall: int
     leadership: int
+    login_code: str
+    password: str
 
     model_config = {
         "from_attributes": True
