@@ -8,9 +8,8 @@ from calendar import monthrange
 from datetime import date
 import dotenv
 import jpholiday
-import calendar
 from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreSkillOverride, StoreDefaultSkillRequirement
+from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement
 from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
@@ -171,10 +170,8 @@ async def register_staff(
     request: Request,
     name: str = Form(...),
     gender: str = Form(...),
-    desired_days: int = Form(...),
-    kitchen_a: int = Form(0),
-    kitchen_b: int = Form(0),
-    drink: int = Form(0),
+    kitchen_a: str = Form(0),
+    kitchen_b: str = Form(0),
     hall: int = Form(0),
     leadership: int = Form(0),
     employment_type: str = Form(...),
@@ -189,10 +186,8 @@ async def register_staff(
     new_staff = Staff(
         name=name,
         gender=gender,
-        desired_days=desired_days,
         kitchen_a=kitchen_a,
         kitchen_b=kitchen_b,
-        drink=drink,
         hall=hall,
         leadership=leadership,
         employment_type=employment_type,
@@ -238,7 +233,7 @@ async def update_bulk_staff(
         if not staff:
             continue
 
-        for key in ["name", "gender", "employment_type", "desired_days", "kitchen_a", "kitchen_b", "drink", "hall", "leadership"]:
+        for key in ["name", "gender", "employment_type", "kitchen_a", "kitchen_b", "hall", "leadership"]:
             if key in item:
                 setattr(staff, key, item[key])
 
@@ -265,21 +260,10 @@ async def shift_request_form(
         raise ValueError("店舗情報が見つかりません")
 
     def generate_time_options(open_time, close_time):
-        start_dt = datetime.combine(date.today(), open_time)
-        end_dt = datetime.combine(date.today(), close_time)
-
-        # close_timeが 00:00 の場合は翌日0時とみなす
-        if close_time == time(0, 0):
-            end_dt += timedelta(days=1)
-
         options = []
-        while start_dt <= end_dt:
-            options.append(start_dt.strftime("%H:%M"))
-            start_dt += timedelta(minutes=30)
 
-        # 24:00 や 25:00 は 00:00 以降として扱う
-        if close_time == time(0, 0):
-            options.append("00:00")
+        for hour in range(open_time, close_time + 1):
+                options.append(hour)
 
         return options
 
@@ -370,8 +354,6 @@ async def submit_shift_request(
     db.commit()
     return RedirectResponse(url="/", status_code=303)
 
-from fastapi import Form
-
 @app.post("/shift_request/update")
 async def update_shift_request(request: Request, db: Session = Depends(get_db)):
     try:
@@ -394,8 +376,8 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
                 start = form_data.get(f"start_{iso_date}")
                 end = form_data.get(f"end_{iso_date}")
 
-                start_time = datetime.strptime(start, "%H:%M").time() if start else None
-                end_time = datetime.strptime(end, "%H:%M").time() if end else None
+                start_time = int(start) if start else None
+                end_time = int(end) if end else None
 
                 shift_request = (
                     db.query(ShiftRequest)
@@ -409,8 +391,8 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
                     db.add(shift_request)
 
                 shift_request.status = status
-                shift_request.start_time = start_time if status == "time" else None
-                shift_request.end_time = end_time if status == "time" else None
+                shift_request.start_time = start_time
+                shift_request.end_time = end_time
         
         context = get_common_context(request)
         context.update( {"request": request, "message": "シフト希望が送信されました。"})
@@ -478,18 +460,11 @@ async def shift_request_overview(
             if r.day == d.day and r.status is not None:
                 status = r.status
                 if status == "time":
-                    def format_time(t):
-                        if t.minute == 0:
-                            return str(t.hour)
-                        elif t.minute == 30:
-                            return f"{t.hour}半"
-                        else:
-                            return t.strftime("%H:%M")
-                    start_str = format_time(r.start_time)
+                    start_str = r.start_time
                     if r.end_time == store.close_hours:
                         end_str = "L"
                     else:
-                        end_str = format_time(r.end_time)
+                        end_str = r.end_time
                     status_display = f"{start_str}〜{end_str}"
                 else:
                     status_display = status
@@ -645,13 +620,14 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
         "平日": {}, "金曜": {}, "土曜": {}, "日曜": {}
     }
     for s in existing_settings:
-        settings[s.day_type][s.hour] = {
-            "kitchen_a": s.kitchen_a,
-            "kitchen_b": s.kitchen_b,
-            "drink": s.drink,
-            "hall": s.hall,
-            "leadership": s.leadership,
-        }
+        for hour in range(s.peak_start_hour, s.peak_end_hour):
+            settings[s.day_type][hour] = {
+                "kitchen_a": s.kitchen_a,
+                "kitchen_b": s.kitchen_b,
+                "hall": s.hall,
+                "leadership": s.leadership,
+            }
+
     
     context = get_common_context(request)
     context.update({
@@ -700,82 +676,3 @@ async def save_default_settings(
 
     db.commit()
     return RedirectResponse("/store_settings/default", status_code=303)
-
-@app.get("/store_settings/detail")
-def detail_settings(
-    request: Request,
-    year: int,
-    month: int,
-    day: int,
-    db: Session = Depends(get_db)
-):
-    current_staff = get_current_staff(request, db)
-    if current_staff is None or current_staff.employment_type != "社員":
-        raise HTTPException(status_code=403, detail="社員のみアクセス可能")
-
-    store = current_staff.store
-    selected_date = date(year, month, day)
-
-    # 既存オーバーライド取得
-    overrides = db.query(StoreSkillOverride).filter_by(
-        store_id=store.id,
-        date=selected_date
-    ).all()
-    override_map = {o.hour: o for o in overrides}
-
-    context = get_common_context(request)
-    context.update({
-        "request": request,
-        "store": store,
-        "date": selected_date,
-        "override_map": override_map,
-    })
-
-    return templates.TemplateResponse("store_detail_settings.html", context)
-
-@app.post("/store_settings/detail")
-async def save_detail_settings(
-    request: Request,
-    db: Session = Depends(get_db)
-):
-    form = await request.form()
-    current_staff = get_current_staff(request, db)
-    if current_staff is None or current_staff.employment_type != "社員":
-        raise HTTPException(status_code=403, detail="社員のみ")
-
-    store = current_staff.store
-    date_str = form.get("date")  # 例：2025-06-10
-    selected_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-    # 時間帯分ループ
-    for hour in range(24):
-        prefix = f"hour_{hour}_"
-        values = []
-        for i in range(1, 6):
-            val = form.get(f"{prefix}skill{i}")
-            values.append(int(val) if val else None)
-
-        if any(v is not None for v in values):
-            # 既存があれば更新、なければ新規
-            override = db.query(StoreSkillOverride).filter_by(
-                store_id=store.id,
-                date=selected_date,
-                hour=hour
-            ).first()
-            if override:
-                override.kitchen_a, override.kitchen_b, override.hall, override.drink, override.leardership = values
-            else:
-                new_override = StoreSkillOverride(
-                    store_id=store.id,
-                    date=selected_date,
-                    hour=hour,
-                    kitchen_a=values[0],
-                    kitchen_b=values[1],
-                    hall=values[2],
-                    drink=values[3],
-                    leardership=values[4],
-                )
-                db.add(new_override)
-
-    db.commit()
-    return RedirectResponse(url=f"/store_settings/detail?year={selected_date.year}&month={selected_date.month}&day={selected_date.day}", status_code=303)

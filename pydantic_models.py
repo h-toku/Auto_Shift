@@ -103,10 +103,8 @@ class StaffOut(BaseModel):
     gender: Optional[str] = None
     employment_type: str
     store_id: int
-    desired_days: int
-    kitchen_a: int
-    kitchen_b: int
-    drink: int
+    kitchen_a: str
+    kitchen_b: str
     hall: int
     leadership: int
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time, Date
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import validates
@@ -14,11 +14,17 @@ class Staff(Base):
         Enum("男", "女", name="gender_enum"),
         nullable=True
     )
-    desired_days = Column(Integer, nullable=False)
-    
-    kitchen_a = Column(Integer, default=0, nullable=False)
-    kitchen_b = Column(Integer, default=0, nullable=False)
-    drink = Column(Integer, default=0, nullable=False)
+
+    kitchen_a = Column(
+        Enum("A", "B", "C", name="kitchen_a_enum"),
+        default="C",
+        nullable=False
+    )
+    kitchen_b = Column(
+        Enum("A", "B", "C", name="kitchen_b_enum"),
+        default="C",
+        nullable=False
+    )
     hall = Column(Integer, default=0, nullable=False)
     leadership = Column(Integer, default=0, nullable=False)
 
@@ -31,29 +37,26 @@ class Staff(Base):
 
     store_id = Column(Integer, ForeignKey('stores.id'))
     store = relationship("Store", back_populates="staffs")
-    
+
     shifts = relationship('Shift', back_populates='staff')
     shift_requests = relationship("ShiftRequest", back_populates="staff")
     shift_results = relationship("Shiftresult", back_populates="staff")
 
     # 0〜5に制限をかける
     __table_args__ = (
-        CheckConstraint('kitchen_a BETWEEN 0 AND 5', name='check_kitchen_a'),
-        CheckConstraint('kitchen_b BETWEEN 0 AND 5', name='check_kitchen_b'),
-        CheckConstraint('drink BETWEEN 0 AND 5', name='check_drink'),
-        CheckConstraint('hall BETWEEN 0 AND 5', name='check_hall'),
         CheckConstraint('leadership BETWEEN 0 AND 5', name='check_leadership'),
+        CheckConstraint('hall BETWEEN 0 AND 5', name='check_hall')
     )
 
 class Shift(Base):
     __tablename__ = 'shifts'
-    
+
     id = Column(Integer, primary_key=True, index=True)
     staff_id = Column(Integer, ForeignKey('staffs.id'))
-    date = Column(Date)
-    start_time = Column(Time)
-    end_time = Column(Time)
-    
+    date = Column(Integer, nullable=False)
+    start_time = Column(Integer, nullable=False)
+    end_time = Column(Integer, nullable=False)
+
     staff = relationship('Staff', back_populates='shifts')
     shift_results = relationship("Shiftresult", back_populates="shift")
 
@@ -62,9 +65,9 @@ class Shiftresult(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     staff_id = Column(Integer, ForeignKey('staffs.id'))
-    date = Column(Date)
-    start_time = Column(Time)
-    end_time = Column(Time)
+    date = Column(Integer, nullable=False) 
+    start_time = Column(Integer, nullable=False) 
+    end_time = Column(Integer, nullable=False) 
     
     staff = relationship('Staff', back_populates='shift_results')
     shift_id = Column(Integer, ForeignKey("shifts.id"))
@@ -83,8 +86,8 @@ class ShiftRequest(Base):
         Enum("×", "○", "time", name="status_enum"),
         nullable=True
     )
-    start_time = Column(Time, nullable=True)
-    end_time = Column(Time, nullable=True)
+    start_time = Column(Integer, nullable=True)
+    end_time = Column(Integer, nullable=True)
     # Staffとのリレーションを修正
     staff = relationship("Staff", back_populates="shift_requests")
 
@@ -106,37 +109,34 @@ class Store(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(255), unique=True, nullable=False)
-    open_hours = Column(Time, nullable=False)  # 修正：open_time → open_hours
-    close_hours = Column(Time, nullable=False)  # 修正：close_time → close_hours
+    open_hours = Column(Integer, nullable=False) 
+    close_hours = Column(Integer, nullable=False) 
     staffs = relationship('Staff', back_populates='store')
     default_skill_requirements = relationship("StoreDefaultSkillRequirement", back_populates="store")
-    skill_overrides = relationship("StoreSkillOverride", back_populates="store")
 
 class StoreDefaultSkillRequirement(Base):
     __tablename__ = "store_default_skill_requirements"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
-    day_type = Column(String(20), nullable=False)  # "平日", "金曜", "土曜", "日曜"
-    hour = Column(Integer, nullable=False)  # 0〜23
+    day_type = Column(
+        Enum("平日", "金曜日", "土曜日","日曜日", name="day_type_enum"),
+        nullable=False
+    )
+    peak_start_hour = Column(Integer, nullable=False)
+    peak_end_hour = Column(Integer, nullable=False)
 
-    kitchen_a = Column(Integer, default=0, nullable=False)
-    kitchen_b = Column(Integer, default=0, nullable=False)
-    drink = Column(Integer, default=0, nullable=False)
+    kitchen_a = Column(
+        Enum("A", "B", "C", name="kitchen_a_enum"),
+        default="C",
+        nullable=False
+    )
+    kitchen_b = Column(
+        Enum("A", "B", "C", name="kitchen_b_enum"),
+        default="C",
+        nullable=False
+    )
     hall = Column(Integer, default=0, nullable=False)
+    people = Column(Integer, default=0, nullable=False)
     leadership = Column(Integer, default=0, nullable=False)
     store = relationship("Store", back_populates="default_skill_requirements")
-
-class StoreSkillOverride(Base):
-    __tablename__ = "store_skill_overrides"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
-    date = Column(Date, nullable=False)
-    hour = Column(Integer, nullable=False)  # 0〜23
-    kitchen_a = Column(Integer, default=0, nullable=False)
-    kitchen_b = Column(Integer, default=0, nullable=False)
-    drink = Column(Integer, default=0, nullable=False)
-    hall = Column(Integer, default=0, nullable=False)
-    leadership = Column(Integer, default=0, nullable=False)
-    store = relationship("Store", back_populates="skill_overrides")
