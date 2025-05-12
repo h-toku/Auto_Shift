@@ -3,7 +3,7 @@
 {% block header_title %}スタッフ管理{% endblock %}
 
 {% block content %}
-<h2>{{ store_name }}</h2>
+<h2>{{ store_name }}-スタッフ</h2>
 
 <form id="staffForm" action="/staff/update_bulk" method="POST">  
 
@@ -27,14 +27,29 @@
     {% for staff in staffs %}
         <tr id="staff_{{ staff.id }}">
             <td><input type="text" name="staffs[{{ staff.id }}][name]" value="{{ staff.name if staff.name is not none else '未設定' }}" required></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][gender]" value="{{ staff.gender if staff.gender is not none else '未設定' }}" required></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_a]" value="{{ staff.kitchen_a if staff.kitchen_a is not none else '未設定' }}" required></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][kitchen_b]" value="{{ staff.kitchen_b if staff.kitchen_b is not none else '未設定' }}" required></td>
+            <td><select name="gender-{{ staff.id }}">
+                <option value="男" {% if staff.gender == "男" %}selected{% endif %}>男</option>
+                <option value="女" {% if staff.gender == "女" %}selected{% endif %}>女</option>
+                </select></td>
+            <td><select name="kitchen_a-{{ staff.id }}">
+                <option value="A" {% if staff.kitchen_a == "A" %}selected{% endif %}>A</option>
+                <option value="B" {% if staff.kitchen_a == "B" %}selected{% endif %}>B</option>
+                <option value="C" {% if staff.kitchen_a == "C" %}selected{% endif %}>C</option>
+                </select></td>
+            <td><select name="kitchen_b-{{ staff.id }}">
+                <option value="A" {% if staff.kitchen_a == "A" %}selected{% endif %}>A</option>
+                <option value="B" {% if staff.kitchen_a == "B" %}selected{% endif %}>B</option>
+                <option value="C" {% if staff.kitchen_a == "C" %}selected{% endif %}>C</option>
+                </select></td>
             <td><input type="number" name="staffs[{{ staff.id }}][hall]" value="{{ staff.hall if staff.hall is not none else '未設定' }}" required></td>
             <td><input type="number" name="staffs[{{ staff.id }}][leadership]" value="{{ staff.leadership if staff.leadership is not none else '未設定' }}" required></td>
             <td><input type="text" name="staffs[{{ staff.id }}][login_code]" value="{{ staff.login_code if staff.login_code is not none else '未設定' }}" required></td>
             <td><input type="text" name="staffs[{{ staff.id }}][password]" value="{{ staff.password if staff.password is not none else '未設定' }}" required></td>
-            <td><input type="text" name="staffs[{{ staff.id }}][employment_type]" value="{{ staff.employment_type if staff.employment_type is not none else '未設定' }}" required></td>
+            <td><select name="employment_type-{{ staff.id }}">
+                <option value="社員" {% if staff.employment_type == "社員" %}selected{% endif %}>社員</option>
+                <option value="バイト" {% if staff.employment_type == "バイト" %}selected{% endif %}>バイト</option>
+                <option value="未成年バイト" {% if staff.employment_type == "未成年バイト" %}selected{% endif %}>未成年バイト</option>
+                </select></td>
             <!-- 削除ボタンは常に表示 -->
             <td><button type="button" class="deleteButton" data-staff-id="{{ staff.id }}" data-staff-name="{{ staff.name }}">削除</button></td>
             <input type="hidden" name="staffs[{{ staff.id }}][id]" value="{{ staff.id }}">
@@ -53,34 +68,40 @@
 
 {% endblock %}
 
+{% block script %}
 <script>
-    // 保存ボタンの確認ダイアログ
-    document.getElementById('saveButton').addEventListener('click', function(event) {
-        if (!confirm('変更を保存しますか？')) {
-            event.preventDefault(); // 保存をキャンセル
+    document.addEventListener('DOMContentLoaded', function () {
+        const saveButton = document.getElementById('saveButton');
+        if (saveButton) {
+            saveButton.addEventListener('click', function (event) {
+                console.log('保存ボタンクリック');
+                if (!confirm('変更を保存しますか？')) {
+                    event.preventDefault();
+                    console.log('保存キャンセル');
+                }
+            });
         }
-    });
 
-    // キャンセルボタンの確認ダイアログ
-    function cancelChanges() {
-        if (confirm('変更を破棄しますか？')) {
-            // フォームの内容を元に戻す
-            document.getElementById('staffForm').reset();
-        }
-    }
-
-    // 削除確認ダイアログ
-    document.addEventListener('DOMContentLoaded', function() {
         const deleteButtons = document.querySelectorAll('.deleteButton');
-        
         deleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function () {
                 const staffId = button.dataset.staffId;
                 const staffName = button.dataset.staffName;
                 if (confirm(staffName + 'の登録情報を削除しますか？')) {
-                    window.location.href = '/staff/delete/' + staffId;  // 削除処理用URLにリダイレクト
+                    window.location.href = '/staff/delete/' + staffId;
                 }
             });
         });
+
+        const cancelButton = document.getElementById('cancelButton');
+        if (cancelButton) {
+            cancelButton.addEventListener('click', function () {
+                if (confirm('変更を破棄しますか？')) {
+                    document.getElementById('staffForm').reset();
+                }
+            });
+        }
     });
 </script>
+{% endblock %}
+

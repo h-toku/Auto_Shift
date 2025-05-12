@@ -226,10 +226,24 @@ button:hover {
     /* パディング調整 */
 }
 
-/* 編集モードのインプットを整える */
-.staff-table input[readonly] {
-    background-color: #f9f9f9;
+.staff-table input[type="text"]:focus,
+.staff-table input[type="number"]:focus {
+    outline: none;
+    border: 1px solid #007BFF;
+    /* フォーカス時のボーダー色 */
 }
+
+.staff-table select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+}
+
+.staff-table select:focus {
+    outline: none;
+    border: 1px solid #007BFF;
+}
+
 
 .small-text {
     font-size: 8px;

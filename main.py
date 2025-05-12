@@ -14,6 +14,7 @@ from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
 from schemas import ShiftRequestUpdate
+from shift_creator import generate_shift_results
 
 dotenv.load_dotenv()
 
@@ -719,3 +720,42 @@ async def save_shift_patterns(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
     return RedirectResponse("/store_settings/default", status_code=303)
+
+@app.post("/shift/generate")
+async def generate_shift(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    store_id = int(form.get("store_id"))
+    year = int(form.get("year"))
+    month = int(form.get("month"))
+
+    generate_shift_results(store_id, year, month, db)
+
+    return RedirectResponse(url="/shift/temp_result", status_code=303)
+
+@app.get("/shift/temp_result")
+def show_temp_shift(request: Request, store_id: int, year: int, month: int, db: Session = Depends(get_db)):
+    from calendar import monthrange
+    num_days = monthrange(year, month)[1]
+
+    staffs = db.query(Staff).filter(Staff.store_id == store_id).all()
+    shiftresults = db.query(Shiftresult).filter(
+        Shiftresult.date.between(year * 10000 + month * 100 + 1, year * 10000 + month * 100 + 31)
+    ).all()
+
+    # (staff_id, date) をキーとしたシフトマップ
+    shift_map = {}
+    for shift in shiftresults:
+        key = (shift.staff_id, shift.date)
+        shift_map.setdefault(key, []).append(shift)
+
+    context = get_common_context(request)
+    context.update({
+        "request": request,
+        "year": year,
+        "month": month,
+        "num_days": num_days,
+        "staffs": staffs,
+        "shift_map": shift_map
+    })
+
+    return templates.TemplateResponse("shift_temp_result.html", context)

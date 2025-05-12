@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block header_title %}仮シフト表{% endblock %}
+
+{% block content %}
+<body>
+    <h1>{{ year }}年{{ month }}月 仮シフト</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th>スタッフ名</th>
+                {% for day in range(1, num_days + 1) %}
+                    <th>{{ day }}日</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for staff in staffs %}
+                <tr>
+                    <td>{{ staff.name }}</td>
+                    {% for day in range(1, num_days + 1) %}
+                        <td>
+                            {% set key = year * 10000 + month * 100 + day %}
+                            {% set shifts = shift_map.get((staff.id, key), []) %}
+                            {% if shifts %}
+                                {% for s in shifts %}
+                                    <div class="assigned">{{ s.start_time }}:00〜{{ s.end_time }}:00</div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="not-assigned">ー</div>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form action="/shift/save" method="post" style="margin-top: 20px;">
+        <input type="hidden" name="store_id" value="{{ store_id }}">
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <button type="submit">この仮シフトを確定する</button>
+    </form>
+</body>
+</html>
+{% endblock %}

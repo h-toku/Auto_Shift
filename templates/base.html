@@ -37,6 +37,7 @@
     <a href="/salary_estimate">給料概算</a>
     {% if employment_type == "社員" %}
       <a href="/shift_request/overview">シフト希望確認</a>
+      <a href="/shift_result">仮シフト確認</a>
       <a href="/staff/register">スタッフ登録</a>
       <a href="/staff/manage">スタッフ管理</a>
       <a href="/store_settings/default">店舗設定</a>
@@ -58,5 +59,6 @@
         menu.classList.toggle("open");
       }
     </script>
+    {% block script %}{% endblock %}
   </body>
 </html>

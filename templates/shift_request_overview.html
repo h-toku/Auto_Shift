@@ -11,6 +11,8 @@
 <body>
     <h1>シフト希望確認</h1>
 
+    
+
     <div class="select-year-month">
     <form method="get" action="/shift_request/overview">
         <select name="year">
@@ -26,8 +28,6 @@
         <button type="submit">表示</button>
         </form>
     </div>
-
-    <h2>{{ year }}年{{ month }}月のシフト希望</h2>
 
 {% set mid = (dates | length) // 2 + (dates | length) % 2 %}
 {% set first_half = dates[:mid] %}
