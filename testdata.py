@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from models import Store, Staff, StoreDefaultSkillRequirement, ShiftRequest
+from models import Store, Staff, StoreDefaultSkillRequirement, ShiftRequest, ShiftPattern
 from database import SessionLocal  # 例：自作の DB セッション
 from datetime import date, time
 
@@ -79,24 +79,36 @@ Staff(id=58,name="鱗滝左近次",gender="男",kitchen_a="C",kitchen_b="C",hall
 db.add_all(staffs)
 
 store_default_skill_requirements = [
-StoreDefaultSkillRequirement(id=1,store_id=1,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,people=5,leadership=5,),
-StoreDefaultSkillRequirement(id=2,store_id=1,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,people=6,leadership=10,),
-StoreDefaultSkillRequirement(id=3,store_id=1,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,people=7,leadership=12,),
-StoreDefaultSkillRequirement(id=4,store_id=1,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,people=6,leadership=8,),
-StoreDefaultSkillRequirement(id=5,store_id=2,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,people=5,leadership=5,),
-StoreDefaultSkillRequirement(id=6,store_id=2,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,people=6,leadership=10,),
-StoreDefaultSkillRequirement(id=7,store_id=2,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,people=7,leadership=12,),
-StoreDefaultSkillRequirement(id=8,store_id=2,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,people=6,leadership=8,),
-StoreDefaultSkillRequirement(id=9,store_id=3,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,people=5,leadership=5,),
-StoreDefaultSkillRequirement(id=10,store_id=3,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,people=6,leadership=10,),
-StoreDefaultSkillRequirement(id=11,store_id=3,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,people=7,leadership=12,),
-StoreDefaultSkillRequirement(id=12,store_id=3,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,people=6,leadership=8,),
-StoreDefaultSkillRequirement(id=13,store_id=4,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,people=5,leadership=5,),
-StoreDefaultSkillRequirement(id=14,store_id=4,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,people=6,leadership=10,),
-StoreDefaultSkillRequirement(id=15,store_id=4,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,people=7,leadership=12,),
-StoreDefaultSkillRequirement(id=16,store_id=4,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,people=6,leadership=8,),
+StoreDefaultSkillRequirement(id=1,store_id=1,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,peak_people=5,leadership=5,open_people=3,close_people=3),
+StoreDefaultSkillRequirement(id=2,store_id=1,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,peak_people=6,leadership=10,open_people=3,close_people=4),
+StoreDefaultSkillRequirement(id=3,store_id=1,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,peak_people=7,leadership=12,open_people=5,close_people=4),
+StoreDefaultSkillRequirement(id=4,store_id=1,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,peak_people=6,leadership=8,open_people=5,close_people=3),
+StoreDefaultSkillRequirement(id=5,store_id=2,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,peak_people=5,leadership=5,open_people=3,close_people=3),
+StoreDefaultSkillRequirement(id=6,store_id=2,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,peak_people=6,leadership=10,open_people=3,close_people=4),
+StoreDefaultSkillRequirement(id=7,store_id=2,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,peak_people=7,leadership=12,open_people=5,close_people=4),
+StoreDefaultSkillRequirement(id=8,store_id=2,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,peak_people=6,leadership=8,open_people=5,close_people=3),
+StoreDefaultSkillRequirement(id=9,store_id=3,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,peak_people=5,leadership=5,open_people=3,close_people=3),
+StoreDefaultSkillRequirement(id=10,store_id=3,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,peak_people=6,leadership=10,open_people=3,close_people=4),
+StoreDefaultSkillRequirement(id=11,store_id=3,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,peak_people=7,leadership=12,open_people=5,close_people=4),
+StoreDefaultSkillRequirement(id=12,store_id=3,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,peak_people=6,leadership=8,open_people=5,close_people=3),
+StoreDefaultSkillRequirement(id=13,store_id=4,day_type="平日",peak_start_hour=19,peak_end_hour=21,kitchen_a="B",hall=10,peak_people=5,leadership=5,open_people=3,close_people=3),
+StoreDefaultSkillRequirement(id=14,store_id=4,day_type="金曜日",peak_start_hour=19,peak_end_hour=22,kitchen_a="A",hall=13,peak_people=6,leadership=10,open_people=3,close_people=4),
+StoreDefaultSkillRequirement(id=15,store_id=4,day_type="土曜日",peak_start_hour=18,peak_end_hour=22,kitchen_a="A",hall=15,peak_people=7,leadership=12,open_people=5,close_people=4),
+StoreDefaultSkillRequirement(id=16,store_id=4,day_type="日曜日",peak_start_hour=17,peak_end_hour=21,kitchen_a="B",hall=12,peak_people=6,leadership=8,open_people=5,close_people=3),
 ]
 db.add_all(store_default_skill_requirements)
+
+# 3. Shift Patterns
+shift_patterns = [
+ShiftPattern(id=1,store_id=1,name="フル",start_time=16,end_time=24,is_fulltime=True,default=True),
+ShiftPattern(id=2,store_id=1,name="ラスト",start_time=21,end_time=24,is_fulltime=False,default=True),
+ShiftPattern(id=3,store_id=1,name="高校生",start_time=16,end_time=21,is_fulltime=False,default=True),
+ShiftPattern(id=4,store_id=1,name="a",start_time=17,end_time=24,is_fulltime=False,default=True),
+ShiftPattern(id=5,store_id=2,name="フル",start_time=17,end_time=24,is_fulltime=True,default=True),
+ShiftPattern(id=9,store_id=3,name="フル",start_time=16,end_time=25,is_fulltime=True,default=True),
+ShiftPattern(id=13,store_id=4,name="フル",start_time=17,end_time=25,is_fulltime=True,default=True),
+]
+db.add_all(shift_patterns)
 
 # コミット
 db.commit()

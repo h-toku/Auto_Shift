@@ -1,7 +1,10 @@
 {% extends "base.html" %}
+
+{% block header_title %}{{ store.name }}店舗設定{% endblock %}
+
 {% block content %}
 
-<h2>{{ store.name }} - 店舗設定</h2>
+<h2>店舗設定</h2>
 
 <form method="post" action="/store_settings/default/save">
   <table border="1">
@@ -9,11 +12,14 @@
       <th>曜日</th>
       <th>ピーク開始</th>
       <th>ピーク終了</th>
-      <th>kitchen_a</th>
-      <th>kitchen_b</th>
-      <th>hall</th>
-      <th>people</th>
-      <th>leadership</th>
+      <th>キッチンA</th>
+      <th>キッチンB</th>
+      <th>ホール点数</th>
+      <th>リーダーシップ点数</th>
+      <th>ピーク時人数</th>
+      <th>オープン時人数</th>
+      <th>締め人数</th>
+
     </tr>
     {% for day_type in ["平日", "金曜日", "土曜日", "日曜日"] %}
     <tr>
@@ -34,13 +40,49 @@
           {% endfor %}
         </select>
       </td>
-      <td><input type="number" name="{{ day_type }}_hall" value="{{ settings[day_type].hall|default(0) }}" min="0"></td>
-      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].people|default(0) }}" min="0"></td>
-      <td><input type="number" name="{{ day_type }}_leadership" value="{{ settings[day_type].leadership|default(0) }}" min="0"></td>
+      <td><input type="number" name="{{ day_type }}_hall" value="{{ settings[day_type].hall|default(0) }}" min="0">点</td>
+      <td><input type="number" name="{{ day_type }}_leadership" value="{{ settings[day_type].leadership|default(0) }}" min="0">点</td>
+      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].peak_people|default(0) }}" min="0">人</td>
+      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].open_people|default(0) }}" min="0">人</td>
+      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].close_people|default(0) }}" min="0">人</td>
     </tr>
     {% endfor %}
   </table>
-  <button type="submit">保存する</button>
+  <button type="submit">
+    店舗設定を保存
+  </button>
 </form>
+
+<h2>シフトパターン設定</h2>
+<form method="post" action="/store_settings/shift_patterns/save">
+  <table border="1">
+    <tr>
+      <th>パターン名</th>
+      <th>開始時刻</th>
+      <th>終了時刻</th>
+      <th>フルタイム</th>
+      <th>削除</th>
+    </tr>
+    {% for pattern in shift_patterns %}
+    <tr>
+      <td><input type="text" name="name_{{ pattern.id }}" value="{{ pattern.name }}"></td>
+      <td><input type="number" name="start_{{ pattern.id }}" value="{{ pattern.start_time }}" min="0" max="23"></td>
+      <td><input type="number" name="end_{{ pattern.id }}" value="{{ pattern.end_time }}" min="1" max="24"></td>
+      <td><input type="checkbox" name="fulltime_{{ pattern.id }}" {% if pattern.is_fulltime %}checked{% endif %}></td>
+      <td><input type="checkbox" name="delete_{{ pattern.id }}"></td>
+    </tr>
+    {% endfor %}
+    <!-- 新規追加行 -->
+    <tr>
+      <td><input type="text" name="name_new"></td>
+      <td><input type="number" name="start_new" min="0" max="23"></td>
+      <td><input type="number" name="end_new" min="1" max="24"></td>
+      <td><input type="checkbox" name="fulltime_new"></td>
+      <td>-</td>
+    </tr>
+  </table>
+  <button type="submit">シフトパターンを保存</button>
+</form>
+
 
 {% endblock %}

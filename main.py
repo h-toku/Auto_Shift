@@ -9,7 +9,7 @@ from datetime import date
 import dotenv
 import jpholiday
 from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement
+from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement, ShiftPattern
 from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
@@ -124,9 +124,9 @@ async def home(
     staff_shifts = {}
     for person in staffs:
         staff_shifts[person.id] = {day["day"]: None for day in days_in_month}
-    
+
     shifts = db.query(Shift).filter(Shift.date >= date(year, month, 1), Shift.date <= date(year, month, last_day)).all()
-    
+
     for shift in shifts:
         staff_shifts[shift.staff_id][shift.date.day] = {
             "start": shift.start_time,
@@ -638,6 +638,7 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
         return {"error": "店舗が見つかりません"}
 
     existing_settings = db.query(StoreDefaultSkillRequirement).filter_by(store_id=store.id).all()
+    shift_patterns = db.query(ShiftPattern).filter_by(store_id=store.id).all()
 
     settings = {}
     for s in existing_settings:
@@ -648,6 +649,7 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
         "request": request,
         "store": store,
         "settings": settings,
+        "shift_patterns": shift_patterns,
     })
 
     return templates.TemplateResponse("store_default_settings.html", context)
@@ -678,6 +680,42 @@ async def save_default_settings(request: Request, db: Session = Depends(get_db))
             leadership=int(form.get(f"{day_type}_leadership", 0)),
         )
         db.add(new_setting)
+
+    db.commit()
+    return RedirectResponse("/store_settings/default", status_code=303)
+
+@app.post("/store_settings/shift_patterns/save")
+async def save_shift_patterns(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    staff = get_current_staff(request, db)
+    if not staff or staff.employment_type != "社員":
+        return RedirectResponse(url="/login", status_code=303)
+
+    store = staff.store
+    if not store:
+        return {"error": "店舗が見つかりません"}
+
+    # 既存パターンの更新・削除
+    existing_patterns = db.query(ShiftPattern).filter_by(store_id=store.id).all()
+    for pattern in existing_patterns:
+        if form.get(f"delete_{pattern.id}"):
+            db.delete(pattern)
+        else:
+            pattern.name = form.get(f"name_{pattern.id}", pattern.name)
+            pattern.start_time = int(form.get(f"start_{pattern.id}", pattern.start_time))
+            pattern.end_time = int(form.get(f"end_{pattern.id}", pattern.end_time))
+            pattern.is_fulltime = f"fulltime_{pattern.id}" in form
+
+    # 新規パターン追加
+    if form.get("name_new"):
+        new_pattern = ShiftPattern(
+            store_id=store.id,
+            name=form.get("name_new"),
+            start_time=int(form.get("start_new")),
+            end_time=int(form.get("end_new")),
+            is_fulltime="fulltime_new" in form
+        )
+        db.add(new_pattern)
 
     db.commit()
     return RedirectResponse("/store_settings/default", status_code=303)

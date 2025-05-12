@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import validates
@@ -113,6 +113,7 @@ class Store(Base):
     close_hours = Column(Integer, nullable=False) 
     staffs = relationship('Staff', back_populates='store')
     default_skill_requirements = relationship("StoreDefaultSkillRequirement", back_populates="store")
+    shift_patterns = relationship("ShiftPattern", back_populates="store", cascade="all, delete-orphan")
 
 class StoreDefaultSkillRequirement(Base):
     __tablename__ = "store_default_skill_requirements"
@@ -137,6 +138,21 @@ class StoreDefaultSkillRequirement(Base):
         nullable=False
     )
     hall = Column(Integer, default=0, nullable=False)
-    people = Column(Integer, default=0, nullable=False)
     leadership = Column(Integer, default=0, nullable=False)
     store = relationship("Store", back_populates="default_skill_requirements")
+    peak_people = Column(Integer, default=0, nullable=False)
+    open_people = Column(Integer, default=0, nullable=False)
+    close_people = Column(Integer, default=0, nullable=False)
+
+class ShiftPattern(Base):
+    __tablename__ = "shift_patterns"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    store_id = Column(Integer, ForeignKey("stores.id"), nullable=False)
+    name = Column(String(255), nullable=False)
+    start_time = Column(Integer, nullable=False) 
+    end_time = Column(Integer, nullable=False)
+    is_fulltime = Column(Boolean, default=False)
+    default = Column(Boolean, default=False)
+
+    store = relationship("Store", back_populates="shift_patterns")
