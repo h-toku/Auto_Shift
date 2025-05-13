@@ -1,48 +1,93 @@
 {% extends "base.html" %}
 
-{% block header_title %}仮シフト表{% endblock %}
+{% block header_title %}仮シフト確認{% endblock %}
 
 {% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仮シフト確認</title>
+</head>
 <body>
-    <h1>{{ year }}年{{ month }}月 仮シフト</h1>
+    <h1>仮シフト確認</h1>
 
-    <table>
-        <thead>
-            <tr>
-                <th>スタッフ名</th>
-                {% for day in range(1, num_days + 1) %}
-                    <th>{{ day }}日</th>
-                {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for staff in staffs %}
-                <tr>
-                    <td>{{ staff.name }}</td>
-                    {% for day in range(1, num_days + 1) %}
-                        <td>
-                            {% set key = year * 10000 + month * 100 + day %}
-                            {% set shifts = shift_map.get((staff.id, key), []) %}
-                            {% if shifts %}
-                                {% for s in shifts %}
-                                    <div class="assigned">{{ s.start_time }}:00〜{{ s.end_time }}:00</div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="not-assigned">ー</div>
-                            {% endif %}
-                        </td>
-                    {% endfor %}
-                </tr>
+    <div class="select-year-month">
+    <form method="get" action="/shift/temp_result">
+        <select name="year">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
             {% endfor %}
-        </tbody>
-    </table>
-
-    <form action="/shift/save" method="post" style="margin-top: 20px;">
-        <input type="hidden" name="store_id" value="{{ store_id }}">
-        <input type="hidden" name="year" value="{{ year }}">
-        <input type="hidden" name="month" value="{{ month }}">
-        <button type="submit">この仮シフトを確定する</button>
+        </select>年
+        <select name="month">
+            {% for m in months %}
+            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>月
+        <button type="submit">表示</button>
     </form>
+    </div>
+
+    {% set mid = (dates | length) // 2 + (dates | length) % 2 %}
+    {% set first_half = dates[:mid] %}
+    {% set second_half = dates[mid:] %}
+
+    <table class="calendar-table">
+      <tbody>
+        <!-- 前半：日付 -->
+        <tr>
+            <td>日付</td>
+            {% for date in first_half %}
+            <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+              {{ date.day }}<br>{{ date.weekday }}
+            </td>
+            {% endfor %}
+        <!-- 前半：シフト -->
+        {% for staff in staffs %}
+        <tr>
+          <td>{{ staff.name }}</td>
+          {% for day in first_half %}
+          {% set date_key = (staff.id, year * 10000 + month * 100 + day) %}
+          <td>
+              {% if shift_map[date_key] is defined %}
+                  {% for s in shift_map[date_key] %}
+                      {{ s.start_hour }}〜{{ s.end_hour }}<br>
+                  {% endfor %}
+              {% else %}
+                  -
+              {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+
+        <!-- 後半：日付 -->
+        <tr>
+            <td>日付</td>
+            {% for date in second_half %}
+            <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+              {{ date.day }}<br>{{ date.weekday }}
+            </td>
+            {% endfor %}
+          </tr>
+        <!-- 後半：シフト -->
+        {% for staff in staffs %}
+        <tr>
+          <td>{{ staff.name }}</td>
+          {% for day in second_half %}
+          {% set date_key = (staff.id, year * 10000 + month * 100 + day) %}
+          <td>
+              {% if shift_map[date_key] is defined %}
+                  {% for s in shift_map[date_key] %}
+                      {{ s.start_hour }}〜{{ s.end_hour }}<br>
+                  {% endfor %}
+              {% else %}
+                  -
+              {% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
 </body>
-</html>
 {% endblock %}

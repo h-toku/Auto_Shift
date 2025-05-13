@@ -144,7 +144,8 @@ async def home(
         "selected_month": month,
         "days_in_month": days_in_month,
         "staff_info": staff_info,
-        "staff_shifts": staff_shifts
+        "staff_shifts": staff_shifts,
+        "staffs": staffs,
     })
 
     return templates.TemplateResponse("home.html", context)
@@ -429,8 +430,6 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
         context.update({"message": f"エラーが発生しました: {str(e)}"})
         return templates.TemplateResponse("done.html", context)
 
-
-
 @app.get("/shift_request/done")
 async def done_page(request: Request):
     context = get_common_context(request)
@@ -506,7 +505,8 @@ async def shift_request_overview(
             "is_saturday": d.weekday() == 5,
             "is_sunday": d.weekday() == 6,
             "editable": True,
-            "requests": requests_for_day
+            "requests": requests_for_day,
+            "staffs": staff_list
         })
         d += timedelta(days=1)
 
@@ -519,114 +519,6 @@ async def shift_request_overview(
     context.update({"request": request, "dates": dates, "years": years, "months": months, "selected_year": year, "selected_month": month})
 
     return templates.TemplateResponse("shift_request_overview.html", context)
-
-@app.get("/shift_result")
-async def shift_result_page(
-    request: Request,
-    db: Session = Depends(get_db),
-    year: int = None,
-    month: int = None
-):
-    current_staff = get_current_staff(request, db)
-    if current_staff is None or current_staff.employment_type != "社員":
-        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
-
-    store = current_staff.store
-    if not store:
-        raise ValueError("店舗情報が見つかりません")
-
-    # シフト取得
-    shifts = db.query(Shift).filter_by(store_id=store.id, year=year, month=month).all()
-    staffs = db.query(Staff).filter_by(store_id=store.id).all()
-
-    # 表示用に変換
-    shift_by_day = {}
-    for shift in shifts:
-        key = (shift.day, shift.staff_id)
-        shift_by_day[key] = {
-            "start_time": shift.start_time.strftime("%H:%M") if shift.start_time else "",
-            "end_time": shift.end_time.strftime("%H:%M") if shift.end_time else ""
-        }
-
-    context = get_common_context(request)
-    context.update({
-        "year": year,
-        "month": month,
-        "days": list(range(1, 32)),
-        "staffs": staffs,
-        "shift_by_day": shift_by_day,
-    })
-
-    return templates.TemplateResponse("shift_result.html", context)
-
-@app.post("/shift_result")
-async def save_shift_result(
-    request: Request,
-    db: Session = Depends(get_db),
-    year: int = Form(...),
-    month: int = Form(...)
-):
-    form = await request.form()
-    current_staff = get_current_staff(request, db)
-
-    store_id = current_staff.store_id
-    db.query(Shiftresult).filter_by(store_id=store_id, year=year, month=month).delete()
-
-    for key, value in form.items():
-        if "-" not in key:
-            continue
-        day_str, staff_id_str, field = key.split("-")  # 例: 15-3-start
-        day = int(day_str)
-        staff_id = int(staff_id_str)
-
-        shift = db.query(Shiftresult).filter_by(
-            store_id=store_id, year=year, month=month, day=day, staff_id=staff_id
-        ).first()
-
-        if not shift:
-            shift = Shiftresult(
-                store_id=store_id,
-                year=year,
-                month=month,
-                day=day,
-                staff_id=staff_id
-            )
-            db.add(shift)
-
-        if field == "start":
-            shift.start_time = datetime.strptime(value, "%H:%M").time() if value else None
-        elif field == "end":
-            shift.end_time = datetime.strptime(value, "%H:%M").time() if value else None
-
-    db.commit()
-    return RedirectResponse(url=f"/shift_result?year={year}&month={month}", status_code=303)
-
-@app.post("/publish_shift")
-async def publish_shift(
-    request: Request,
-    db: Session = Depends(get_db),
-    year: int = Form(...),
-    month: int = Form(...)
-):
-    current_staff = get_current_staff(request, db)
-
-    # すべての ShiftResult を ShiftCalendar にコピー（公開用）
-    results = db.query(Shiftresult).filter_by(store_id=current_staff.store_id, year=year, month=month).all()
-
-    for result in results:
-        calendar = Shift(
-            staff_id=result.staff_id,
-            store_id=result.store_id,
-            year=result.year,
-            month=result.month,
-            day=result.day,
-            start_time=result.start_time,
-            end_time=result.end_time
-        )
-        db.add(calendar)
-
-    db.commit()
-    return RedirectResponse(url="/", status_code=303)
 
 @app.get("/store_settings/default")
 async def default_skill_settings(request: Request, db: Session = Depends(get_db)):
@@ -733,29 +625,82 @@ async def generate_shift(request: Request, db: Session = Depends(get_db)):
     return RedirectResponse(url="/shift/temp_result", status_code=303)
 
 @app.get("/shift/temp_result")
-def show_temp_shift(request: Request, store_id: int, year: int, month: int, db: Session = Depends(get_db)):
-    from calendar import monthrange
-    num_days = monthrange(year, month)[1]
+async def shift_temp_result(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = None,
+    month: int = None
+):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
 
-    staffs = db.query(Staff).filter(Staff.store_id == store_id).all()
-    shiftresults = db.query(Shiftresult).filter(
-        Shiftresult.date.between(year * 10000 + month * 100 + 1, year * 10000 + month * 100 + 31)
-    ).all()
+    store_id = current_staff.store_id
+    today = date.today()
+    if not year or not month:
+        year, month = today.year, today.month + 1
+        if month == 13:
+            year += 1
+            month = 1
 
-    # (staff_id, date) をキーとしたシフトマップ
-    shift_map = {}
-    for shift in shiftresults:
-        key = (shift.staff_id, shift.date)
-        shift_map.setdefault(key, []).append(shift)
+    store = current_staff.store
+    if not store:
+        raise ValueError("店舗情報が見つかりません")
+
+    # スタッフ情報の取得
+    staff_list = db.query(Staff).filter(Staff.store_id == store_id).all()
+    staff_map = {s.id: s.name for s in staff_list}
+    staff_ids = list(staff_map.keys())
+
+    # 仮シフト結果の取得
+    shift_results = []
+    if staff_ids:
+        shift_results = db.query(Shiftresult).filter(
+            Shiftresult.year == year,
+            Shiftresult.month == month,
+            Shiftresult.staff_id.in_(staff_ids)
+        ).all()
+
+    # カレンダー日付生成
+    first_day = date(year, month, 1)
+    dates = []
+    d = first_day
+    while d.month == month:
+        results_for_day = []
+        for r in shift_results:
+            if r.day == d.day:
+                results_for_day.append({
+                    "staff_name": staff_map.get(r.staff_id, "不明"),
+                    "status": f"{r.start_time}〜{r.end_time}" if r.start_time and r.end_time else "-"
+                })
+
+        dates.append({
+            "day": d.day,
+            "iso": d.isoformat(),
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][d.weekday()],
+            "is_today": d == today,
+            "is_saturday": d.weekday() == 5,
+            "is_sunday": d.weekday() == 6,
+            "editable": False,
+            "requests": results_for_day,
+            "staffs": staff_list
+        })
+        d += timedelta(days=1)
+
+    # 年・月の選択肢生成
+    current_year = today.year
+    years = [current_year - 1, current_year, current_year + 1]
+    months = list(range(1, 13))
 
     context = get_common_context(request)
     context.update({
         "request": request,
-        "year": year,
-        "month": month,
-        "num_days": num_days,
-        "staffs": staffs,
-        "shift_map": shift_map
+        "dates": dates,
+        "years": years,
+        "months": months,
+        "selected_year": year,
+        "selected_month": month
     })
 
     return templates.TemplateResponse("shift_temp_result.html", context)
+

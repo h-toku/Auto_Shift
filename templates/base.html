@@ -32,12 +32,16 @@
       <!-- 閉じるボタン -->
       <a href="/">ホーム</a>
       {% block side_menu %}
+      <h2>-メニュー</h2>
   {% if user_logged_in %}
     <a href="/shift_request">シフト希望提出</a>
     <a href="/salary_estimate">給料概算</a>
     {% if employment_type == "社員" %}
+    <h2>-社員メニュー</h2>
+    <h3>-シフト</h3>
       <a href="/shift_request/overview">シフト希望確認</a>
-      <a href="/shift_result">仮シフト確認</a>
+      <a href="/shift/temp_result">仮シフト確認</a>
+    <h3>-店舗</h3>
       <a href="/staff/register">スタッフ登録</a>
       <a href="/staff/manage">スタッフ管理</a>
       <a href="/store_settings/default">店舗設定</a>

@@ -65,7 +65,9 @@ class Shiftresult(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     staff_id = Column(Integer, ForeignKey('staffs.id'))
-    date = Column(Integer, nullable=False) 
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    day = Column(Integer, nullable=False)
     start_time = Column(Integer, nullable=False) 
     end_time = Column(Integer, nullable=False) 
     

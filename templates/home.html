@@ -24,50 +24,56 @@
       </form>
     </div>
   
-    <table class="calendar-table">
+    <table class="calendar-table fixed-column">
       <thead>
-        <tr>
-          <th>スタッフ名</th>
-          {% for day in days_in_month %}
-            <th class="{{ day.style_class }}">
-              {{ day.day }}
-            </th>
-          {% endfor %}
-        </tr>
-        <tr>
-          <th></th>
-          {% for day in days_in_month %}
-            <th class="{{ day.style_class }}">
-              {{ day.weekday }}
-            </th>
-          {% endfor %}
-        </tr>
+        <tr><th>日</th></tr>
       </thead>
       <tbody>
-        {% for staff in staffs %}
-          <tr>
-            <td style="color: {{ staff.color }};">{{ staff.name }}</td>
+        {% for day in days_in_month %}
+        <tr>
+          <td class="{{ day.style_class }}">
+            {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+      <!-- 横スクロールテーブル -->
+      <div class="scrollable-table-container">
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              {% for staff in staffs %}
+              <th style="color: {{ staff.color }};">{{ staff.name }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
             {% for day in days_in_month %}
+            <tr>
+              {% for staff in staffs %}
               <td class="{{ day.style_class }}">
                 {% if staff_shifts[staff.id][day.day] %}
                   <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
                 {% else %}
-                  <span class="off"></span>
+                  <span class="off">-</span>
                 {% endif %}
               </td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  
-  {% else %}
-    <div class="login-message">
-      <p>店長にIDとパスワードを聞いてログインしてください。</p>
-      <a href="{{ login_button.url }}" class="login-button">
-        {{ login_button.name }}
-      </a>
+          </tbody>
+        </table>
+      </div>
     </div>
-  {% endif %}
-{% endblock %}
+    
+    {% else %}
+      <div class="login-message">
+        <p>店長にIDとパスワードを聞いてログインしてください。</p>
+        <a href="{{ login_button.url }}" class="login-button">
+          {{ login_button.name }}
+        </a>
+      </div>
+    {% endif %}
+    {% endblock %}

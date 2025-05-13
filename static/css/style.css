@@ -249,3 +249,53 @@ button:hover {
     font-size: 8px;
     /* フォントサイズを小さく */
 }
+
+/* スクロール可能なカレンダー */
+.scroll-container {
+    display: flex;
+    height: 500px;
+    overflow: hidden;
+    border: 1px solid #ccc;
+    margin-top: 20px;
+}
+
+.fixed-column {
+    width: 80px;
+    /* ← ここを狭くする */
+    flex-shrink: 0;
+    background: #f9f9f9;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+}
+
+.scrollable-table-container {
+    overflow: auto;
+    width: 100%;
+}
+
+.calendar-table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    min-width: max-content;
+}
+
+.calendar-table th,
+.calendar-table td {
+    border: 1px solid #ccc;
+    padding: 4px 6px;
+    /* ← パディングを少なく */
+    text-align: center;
+    font-size: 0.75em;
+    /* ← フォント小さく */
+    white-space: nowrap;
+    /* ← 折返し防止 */
+}
+
+.calendar-table thead th {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    z-index: 1;
+}

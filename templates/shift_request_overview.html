@@ -11,8 +11,6 @@
 <body>
     <h1>シフト希望確認</h1>
 
-    
-
     <div class="select-year-month">
     <form method="get" action="/shift_request/overview">
         <select name="year">
@@ -33,58 +31,51 @@
 {% set first_half = dates[:mid] %}
 {% set second_half = dates[mid:] %}
 
-<form method="post" action="/shift_request/overview">
+<div class="scroll-container">
+  <!-- 固定列（日付） -->
+  <table class="calendar-table fixed-column">
+    <thead>
+      <tr><th>日付</th></tr>
+    </thead>
+    <tbody>
+      {% for date in dates %}
+      <tr>
+        <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
+          {{ date.day }}<br>{{ date.weekday }}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- スクロール部分（スタッフ × シフト） -->
+  <div class="scrollable-table-container">
     <table class="calendar-table">
+      <thead>
+        <tr>
+          {% for staff in staffs %}
+          <th>{{ staff.name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
       <tbody>
-        <!-- 前半：日付 -->
+        {% for date in dates %}
         <tr>
-          <td>日付</td>
-          {% for date in first_half %}
-          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-            {{ date.day }}<br>{{ date.weekday }}
-          </td>
-          {% endfor %}
-        </tr>
-        <!-- 前半：希望 -->
-        <tr>
-          <td>希望</td>
-          {% for date in first_half %}
+          {% for staff in staffs %}
           <td>
-            {% if date.requests %}
-                {% for req in date.requests %}
-                <span class="small-text">{{ req.staff_name }}：{{ req.status }}</span><br>
-            {% endfor %}
+            {% set req = (date.requests | selectattr("staff_name", "equalto", staff.name) | list) %}
+            {% if req %}
+              <span class="small-text">{{ req[0].status }}</span>
             {% else %}
-                -
+              -
             {% endif %}
           </td>
           {% endfor %}
         </tr>
-      
-        <!-- 後半：日付 -->
-        <tr>
-          <td>日付</td>
-          {% for date in second_half %}
-          <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-            {{ date.day }}<br>{{ date.weekday }}
-          </td>
-          {% endfor %}
-        </tr>
-        <!-- 後半：希望 -->
-        <tr>
-          <td>希望</td>
-          {% for date in second_half %}
-          <td>
-            {% if date.requests %}
-                {% for req in date.requests %}
-                <span class="small-text">{{ req.staff_name }}：{{ req.status }}</span><br>
-            {% endfor %}
-            {% else %}
-                -
-            {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-      </tbody>      
+        {% endfor %}
+      </tbody>
     </table>
+  </div>
+</div>
+
 {% endblock %}
