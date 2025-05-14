@@ -14,9 +14,17 @@ body {
     background-color: #007BFF;
     color: white;
     padding: 10px 20px;
-    height: 60px;
-    /* ヘッダーの高さを固定 */
+    height: 65px;
+    position: relative;
+    /* スクロール時にヘッダーを固定 */
+    z-index: 1000;
+    /* 他の要素の上に表示 */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    /* 影をつける */
+    border-bottom: 1px solid #ccc;
+    /* 下に境界線を追加 */
 }
+
 
 .menu-button {
     font-size: 24px;
@@ -68,14 +76,29 @@ button:hover {
     position: fixed;
     top: 0;
     left: -200px;
-    width: 200px;
+    width: 180px;
     height: 100%;
     background-color: #343a40;
     color: white;
-    padding-top: 60px;
+    padding-top: 40px;
+    padding-left: 10px;
     transition: left 0.3s;
     display: flex;
     flex-direction: column;
+    position: fixed;
+    z-index: 999;
+    /* ヘッダーの下に表示 */
+    overflow-y: auto;
+    /* スクロール可能にする */
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+    /* 影をつける */
+    border-right: 1px solid #ccc;
+    /* 右側に境界線を追加 */
+    border-radius: 0 8px 8px 0;
+    /* 角を丸くする */
+    font-size: 14px;
+    /* フォントサイズを小さく */
+    z-index: 1000;
 }
 
 .side-menu a {
@@ -294,7 +317,6 @@ button:hover {
 }
 
 .calendar-table thead th {
-    position: sticky;
     top: 0;
     background: #fff;
     z-index: 1;
