@@ -301,11 +301,35 @@ button:hover {
     border-collapse: collapse;
     width: 100%;
     table-layout: fixed;
-    min-width: max-content;
+    border-collapse: collapse;
+}
+
+.calendar-table select {
+    width: 100%;
+    box-sizing: fixed;
+    padding: 4px;
+}
+
+.calendar-table select:focus {
+    outline: none;
+    border: 1px solid #007BFF;
+}
+
+.time-select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px;
+    font-size: 5px;
+}
+
+.time-select:focus {
+    outline: none;
+    border: 1px solid #007BFF;
 }
 
 .calendar-table th,
-.calendar-table td {
+.calendar-table td,
+.calendar-table tr {
     border: 1px solid #ccc;
     padding: 4px 6px;
     /* ← パディングを少なく */
@@ -316,7 +340,37 @@ button:hover {
     /* ← 折返し防止 */
 }
 
-.calendar-table thead th {
+.scrollable-table-wrapper {
+    max-height: 400px;
+    /* 好きな高さに調整 */
+    overflow: auto;
+    /* 縦横スクロール */
+    border: 1px solid #ccc;
+}
+
+.sticky-col {
+    position: sticky;
+    left: 0;
+    background-color: #f9f9f9;
+    z-index: 1;
+}
+
+/* 固定行（上部：ヘッダー） */
+.sticky-header {
+    position: sticky;
+    top: 0;
+    background-color: #f1f1f1;
+    z-index: 2;
+}
+
+/* 交差セル（日付ヘッダーセル） */
+.calendar-table th.sticky-col {
+    z-index: 3;
+}
+
+.calendar-table thead th,
+.calendar-table thead td,
+.calendar-table thead tr {
     top: 0;
     background: #fff;
     z-index: 1;

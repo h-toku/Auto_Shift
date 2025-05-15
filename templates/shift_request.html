@@ -48,26 +48,29 @@
               <option value="">--</option>
               <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
               <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
-              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>time</option>
             </select><br>
 
             <!-- 開始時間 -->
+          <div class="time-select">
             <select name="start_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
               <option value="">--</option>
               {% for t in date.time_options %}
                 <option value="{{ t }}" {% if shift_data[date.iso].start == t %}selected{% endif %}>{{ t }}</option>
               {% endfor %}
             </select>
-            
-            〜
+          </div>
+            ｜
             
             <!-- 終了時間 -->
+            <div class="time-select">
             <select name="end_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
               <option value="">--</option>
               {% for t in date.time_options %}
                 <option value="{{ t }}" {% if shift_data[date.iso].end == t %}selected{% endif %}>{{ t }}</option>
               {% endfor %}
             </select>
+            </div>
 
           {% else %}
             {{ shift_data[date.iso].status or '-' }}
@@ -100,22 +103,25 @@
             </select><br>
 
             <!-- 開始時間 -->
-            <select name="start_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-              <option value="">--</option>
-              {% for t in date.time_options %}
-                <option value="{{ t }}" {% if shift_data[date.iso].start == t %}selected{% endif %}>{{ t }}</option>
-              {% endfor %}
-            </select>
-            
-            〜
-            
-            <!-- 終了時間 -->
-            <select name="end_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
-              <option value="">--</option>
-              {% for t in date.time_options %}
-                <option value="{{ t }}" {% if shift_data[date.iso].end == t %}selected{% endif %}>{{ t }}</option>
-              {% endfor %}
-            </select>
+            <div class="time-select">
+              <select name="start_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+                <option value="">--</option>
+                {% for t in date.time_options %}
+                  <option value="{{ t }}" {% if shift_data[date.iso].start == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+              ｜
+              
+              <!-- 終了時間 -->
+              <div class="time-select">
+              <select name="end_{{ date.iso }}" {% if shift_data[date.iso].status != 'time' %}disabled{% endif %}>
+                <option value="">--</option>
+                {% for t in date.time_options %}
+                  <option value="{{ t }}" {% if shift_data[date.iso].end == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+              </div>
 
           {% else %}
             {{ shift_data[date.iso].status or '-' }}

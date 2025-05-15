@@ -24,49 +24,37 @@
       </form>
     </div>
   
-    <table class="calendar-table fixed-column">
-      <thead>
-        <tr><th>日</th></tr>
-      </thead>
-      <tbody>
-        {% for day in days_in_month %}
-        <tr>
-          <td class="{{ day.style_class }}">
-            {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    
-      <!-- 横スクロールテーブル -->
-      <div class="scrollable-table-container">
-        <table class="calendar-table">
-          <thead>
-            <tr>
-              {% for staff in staffs %}
-              <th style="color: {{ staff.color }};">{{ staff.name }}</th>
-              {% endfor %}
-            </tr>
-          </thead>
-          <tbody>
-            {% for day in days_in_month %}
-            <tr>
-              {% for staff in staffs %}
-              <td class="{{ day.style_class }}">
-                {% if staff_shifts[staff.id][day.day] %}
-                  <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
-                {% else %}
-                  <span class="off">-</span>
-                {% endif %}
-              </td>
-              {% endfor %}
-            </tr>
+    <div class="scrollable-table-wrapper">
+      <table class="calendar-table">
+        <thead>
+          <tr>
+            <th class="sticky-col sticky-header">日付</th>
+            {% for staff in staffs %}
+            <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
             {% endfor %}
-          </tbody>
-        </table>
-      </div>
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in days_in_month %}
+          <tr>
+            <td class="sticky-col {{ day.style_class }}">
+              {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+            </td>
+            {% for staff in staffs %}
+            <td class="{{ day.style_class }}">
+              {% if staff_shifts[staff.id][day.day] %}
+                <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
+              {% else %}
+                <span class="off">-</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
+    
     
     {% else %}
       <div class="login-message">

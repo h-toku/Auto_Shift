@@ -25,6 +25,12 @@
         </select>月
         <button type="submit">表示</button>
         </form>
+
+
+        
+        <form method="post" action="/shift/generate" style="display: inline">
+          <button type="submit">シフト作成</button>
+        </form>
     </div>
 
 {% set mid = (dates | length) // 2 + (dates | length) % 2 %}
