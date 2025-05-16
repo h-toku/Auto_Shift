@@ -3,11 +3,6 @@
 {% block header_title %}仮シフト確認{% endblock %}
 
 {% block content %}
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>仮シフト確認</title>
-</head>
 <body>
     <h1>仮シフト確認</h1>
 
@@ -27,67 +22,37 @@
     </form>
     </div>
 
-    {% set mid = (dates | length) // 2 + (dates | length) % 2 %}
-    {% set first_half = dates[:mid] %}
-    {% set second_half = dates[mid:] %}
-
-    <table class="calendar-table">
-      <tbody>
-        <!-- 前半：日付 -->
-        <tr>
-            <td>日付</td>
-            {% for date in first_half %}
-            <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-              {{ date.day }}<br>{{ date.weekday }}
-            </td>
-            {% endfor %}
-        <!-- 前半：シフト -->
-        {% for staff in staffs %}
-        <tr>
-          <td>{{ staff.name }}</td>
-          {% for day in first_half %}
-          {% set date_key = (staff.id, year * 10000 + month * 100 + day) %}
-          <td>
-              {% if shift_map[date_key] is defined %}
-                  {% for s in shift_map[date_key] %}
-                      {{ s.start_hour }}〜{{ s.end_hour }}<br>
-                  {% endfor %}
+    <div class="scrollable-table-wrapper">
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th class="sticky-col sticky-header">日付</th>
+              {% for staff in staffs %}
+              <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in days_in_month %}
+            <tr>
+              <td class="sticky-col {{ day.style_class }}">
+                {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+              </td>
+              {% for staff in staffs %}
+              <td class="{{ day.style_class }}">
+                {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
+                {% if shift %}
+                {% if shift.status in ["○", "×"] %}
+                <span style="font-size: 25px;">{{ shift.status }}</span>
               {% else %}
-                  -
+                <span>{{ shift.status }}</span>
               {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-
-        <!-- 後半：日付 -->
-        <tr>
-            <td>日付</td>
-            {% for date in second_half %}
-            <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-              {{ date.day }}<br>{{ date.weekday }}
-            </td>
+              </td>
+              {% endif %}
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-        <!-- 後半：シフト -->
-        {% for staff in staffs %}
-        <tr>
-          <td>{{ staff.name }}</td>
-          {% for day in second_half %}
-          {% set date_key = (staff.id, year * 10000 + month * 100 + day) %}
-          <td>
-              {% if shift_map[date_key] is defined %}
-                  {% for s in shift_map[date_key] %}
-                      {{ s.start_hour }}〜{{ s.end_hour }}<br>
-                  {% endfor %}
-              {% else %}
-                  -
-              {% endif %}
-          </td>
-          {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-</body>
+          </tbody>
+        </table>
+      </div>
 {% endblock %}

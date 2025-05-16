@@ -3,11 +3,6 @@
 {% block header_title %}シフト希望確認{% endblock %}
 
 {% block content %}
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>シフト希望確認</title>
-</head>
 <body>
     <h1>シフト希望確認</h1>
 
@@ -33,55 +28,38 @@
         </form>
     </div>
 
-{% set mid = (dates | length) // 2 + (dates | length) % 2 %}
-{% set first_half = dates[:mid] %}
-{% set second_half = dates[mid:] %}
-
-<div class="scroll-container">
-  <!-- 固定列（日付） -->
-  <table class="calendar-table fixed-column">
-    <thead>
-      <tr><th>日付</th></tr>
-    </thead>
-    <tbody>
-      {% for date in dates %}
-      <tr>
-        <td class="{{ 'today' if date.is_today else '' }} {{ 'saturday' if date.is_saturday else '' }} {{ 'sunday' if date.is_sunday else '' }}">
-          {{ date.day }}<br>{{ date.weekday }}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-
-  <!-- スクロール部分（スタッフ × シフト） -->
-  <div class="scrollable-table-container">
-    <table class="calendar-table">
-      <thead>
-        <tr>
-          {% for staff in staffs %}
-          <th>{{ staff.name }}</th>
-          {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for date in dates %}
-        <tr>
-          {% for staff in staffs %}
-          <td>
-            {% set req = (date.requests | selectattr("staff_name", "equalto", staff.name) | list) %}
-            {% if req %}
-              <span class="small-text">{{ req[0].status }}</span>
+<div class="scrollable-table-wrapper">
+      <table class="calendar-table">
+        <thead>
+          <tr>
+            <th class="sticky-col sticky-header">日付</th>
+            {% for staff in staffs %}
+            <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for day in days_in_month %}
+          <tr>
+            <td class="sticky-col {{ day.style_class }}">
+              {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+            </td>
+            {% for staff in staffs %}
+            <td class="{{ day.style_class }}">
+              {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
+              {% if shift %}
+              {% if shift.status in ["○", "×"] %}
+              <span style="font-size: 25px;">{{ shift.status }}</span>
             {% else %}
-              -
+              <span>{{ shift.status }}</span>
             {% endif %}
-          </td>
+            </td>
+            {% endif %}
+            {% endfor %}
+          </tr>
           {% endfor %}
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-</div>
+        </tbody>
+      </table>
+    </div>
 
 {% endblock %}

@@ -30,10 +30,10 @@
     <nav id="side-menu" class="side-menu">
       <button class="close-button" onclick="toggleMenu()">×</button>
       <!-- 閉じるボタン -->
-      <a href="/">ホーム</a>
       {% block side_menu %}
       <h2>-メニュー</h2>
   {% if user_logged_in %}
+    <a href="/">ホーム</a>
     <a href="/shift_request">シフト希望提出</a>
     <a href="/salary_estimate">給料概算</a>
     {% if employment_type == "社員" %}

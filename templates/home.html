@@ -5,7 +5,7 @@
 {% block content %}
   {% if user_logged_in %}
   <div class="calendar-container">
-    <h2>カレンダー（月表示）</h2>
+    <h2>シフト</h2>
     <div class="select-year-month">
       <form method="get">
         <select name="year">
@@ -44,8 +44,6 @@
             <td class="{{ day.style_class }}">
               {% if staff_shifts[staff.id][day.day] %}
                 <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
-              {% else %}
-                <span class="off">-</span>
               {% endif %}
             </td>
             {% endfor %}

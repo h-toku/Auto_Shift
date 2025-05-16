@@ -8,6 +8,7 @@
 <form id="staffForm" action="/staff/update_bulk" method="POST">  
 
 {% if staffs %}
+<div class="staff-table-container">
 <table class="staff-table">
     <thead>
         <tr>
@@ -57,6 +58,7 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 {% else %}
 <p>スタッフ情報がありません。</p>
 {% endif %}

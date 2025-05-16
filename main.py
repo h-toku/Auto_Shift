@@ -88,9 +88,11 @@ async def home(
 
     # カレンダーの日付データの作成
     days_in_month = []
+    japanese_weekdays = ["月", "火", "水", "木", "金", "土", "日"]
+
     for d in range(1, last_day + 1):
         current = date(year, month, d)
-        weekday = current.strftime("%a")
+        weekday = japanese_weekdays[current.weekday()]
         style_class = ""
         if current == today:
             style_class = "today"
@@ -452,73 +454,80 @@ async def shift_request_overview(
 
     store_id = current_staff.store_id
     today = date.today()
+
     if not year or not month:
-        year, month = today.year, today.month +1
-    
+        year, month = today.year, today.month + 1
+        if month == 13:
+            year += 1
+            month = 1
+
     store = current_staff.store
     if not store:
         raise ValueError("店舗情報が見つかりません")
 
-
-    # スタッフ情報の取得
+    # スタッフ一覧
     staff_list = db.query(Staff).filter(Staff.store_id == store_id).all()
     staff_ids = [s.id for s in staff_list]
-    staff_map = {s.id: s.name for s in staff_list}
 
-    # シフトリクエストを取得
-    shift_requests = []
-    if staff_ids:
-        shift_requests = db.query(ShiftRequest).filter(
-            ShiftRequest.year == year,
-            ShiftRequest.month == month,
-            ShiftRequest.staff_id.in_(staff_ids)
-        ).all()
+    # 希望シフトの取得（ShiftRequest）
+    shift_requests = db.query(ShiftRequest).filter(
+        ShiftRequest.year == year,
+        ShiftRequest.month == month,
+        ShiftRequest.staff_id.in_(staff_ids)
+    ).all()
 
-    # カレンダー日付生成
+    # 希望シフトを staff_shifts[staff_id][day] に格納
+    staff_shifts = {staff.id: {} for staff in staff_list}
+    for r in shift_requests:
+        if r.status is None:
+            continue
+        if r.status == "time":
+            start_str = r.start_time
+            end_str = "L" if r.end_time == store.close_hours else r.end_time
+            display = f"{start_str}〜{end_str}"
+        else:
+            display = r.status  # "×" など
+        staff_shifts[r.staff_id][r.day] = {
+            "status": display
+        }
+
+    # カレンダー日付生成（縦軸）
     first_day = date(year, month, 1)
-    dates = []
+    days_in_month = []
     d = first_day
     while d.month == month:
-        requests_for_day = []
-        for r in shift_requests:
-            if r.day == d.day and r.status is not None:
-                status = r.status
-                if status == "time":
-                    start_str = r.start_time
-                    if r.end_time == store.close_hours:
-                        end_str = "L"
-                    else:
-                        end_str = r.end_time
-                    status_display = f"{start_str}〜{end_str}"
-                else:
-                    status_display = status
-                requests_for_day.append({
-                    "staff_name": staff_map.get(r.staff_id, "不明"),
-                    "status": status_display
-                })
-
-        dates.append({
+        weekday = d.weekday()
+        style_class = ""
+        if weekday == 5:
+            style_class = "saturday"
+        elif weekday == 6 or jpholiday.is_holiday(d):
+            style_class = "sunday"
+        days_in_month.append({
             "day": d.day,
-            "iso": d.isoformat(),
-            "weekday": ["月", "火", "水", "木", "金", "土", "日"][d.weekday()],
-            "is_today": d == today,
-            "is_saturday": d.weekday() == 5,
-            "is_sunday": d.weekday() == 6,
-            "editable": True,
-            "requests": requests_for_day,
-            "staffs": staff_list
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][weekday],
+            "style_class": style_class
         })
         d += timedelta(days=1)
 
-    # 年・月の選択肢生成
+    # 年・月の選択肢
     current_year = today.year
     years = [current_year - 1, current_year, current_year + 1]
     months = list(range(1, 13))
 
     context = get_common_context(request)
-    context.update({"request": request, "dates": dates, "years": years, "months": months, "selected_year": year, "selected_month": month})
+    context.update({
+        "request": request,
+        "days_in_month": days_in_month,
+        "years": years,
+        "months": months,
+        "selected_year": year,
+        "selected_month": month,
+        "staffs": staff_list,
+        "staff_shifts": staff_shifts
+    })
 
     return templates.TemplateResponse("shift_request_overview.html", context)
+
 
 @app.get("/store_settings/default")
 async def default_skill_settings(request: Request, db: Session = Depends(get_db)):
@@ -661,29 +670,35 @@ async def shift_temp_result(
             Shiftresult.staff_id.in_(staff_ids)
         ).all()
 
+    staff_shifts = {staff.id: {} for staff in staff_list}
+    for r in shift_results:
+        if r.status is None:
+            continue
+        if r.status == "time":
+            start_str = r.start_time
+            end_str = "L" if r.end_time == store.close_hours else r.end_time
+            display = f"{start_str}〜{end_str}"
+        else:
+            display = r.status  # "×" など
+        staff_shifts[r.staff_id][r.day] = {
+            "status": display
+        }
+
     # カレンダー日付生成
     first_day = date(year, month, 1)
-    dates = []
+    days_in_month = []
     d = first_day
     while d.month == month:
-        results_for_day = []
-        for r in shift_results:
-            if r.day == d.day:
-                results_for_day.append({
-                    "staff_name": staff_map.get(r.staff_id, "不明"),
-                    "status": f"{r.start_time}〜{r.end_time}" if r.start_time and r.end_time else "-"
-                })
-
-        dates.append({
+        weekday = d.weekday()
+        style_class = ""
+        if weekday == 5:
+            style_class = "saturday"
+        elif weekday == 6 or jpholiday.is_holiday(d):
+            style_class = "sunday"
+        days_in_month.append({
             "day": d.day,
-            "iso": d.isoformat(),
-            "weekday": ["月", "火", "水", "木", "金", "土", "日"][d.weekday()],
-            "is_today": d == today,
-            "is_saturday": d.weekday() == 5,
-            "is_sunday": d.weekday() == 6,
-            "editable": False,
-            "requests": results_for_day,
-            "staffs": staff_list
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][weekday],
+            "style_class": style_class
         })
         d += timedelta(days=1)
 
@@ -695,11 +710,13 @@ async def shift_temp_result(
     context = get_common_context(request)
     context.update({
         "request": request,
-        "dates": dates,
+        "days_in_month": days_in_month,
         "years": years,
         "months": months,
         "selected_year": year,
-        "selected_month": month
+        "selected_month": month,
+        "staffs": staff_list,
+        "staff_shifts": staff_shifts
     })
 
     return templates.TemplateResponse("shift_temp_result.html", context)
