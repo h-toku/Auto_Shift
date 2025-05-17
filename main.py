@@ -14,7 +14,7 @@ from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
 from schemas import ShiftRequestUpdate
-from shift_creator import generate_shift_results
+from shift_creator import generate_shift_results_with_pulp
 
 dotenv.load_dotenv()
 
@@ -426,11 +426,11 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
         context.update( {"request": request, "message": "シフト希望が送信されました。"})
 
         db.commit()
-        return templates.TemplateResponse("done.html",context)
+        return templates.TemplateResponse("request_done.html",context)
 
     except Exception as e:
         context.update({"message": f"エラーが発生しました: {str(e)}"})
-        return templates.TemplateResponse("done.html", context)
+        return templates.TemplateResponse("request_done.html", context)
 
 @app.get("/shift_request/done")
 async def done_page(request: Request):
@@ -622,16 +622,35 @@ async def save_shift_patterns(request: Request, db: Session = Depends(get_db)):
     db.commit()
     return RedirectResponse("/store_settings/default", status_code=303)
 
-@app.post("/shift/generate")
-async def generate_shift(request: Request, db: Session = Depends(get_db)):
-    form = await request.form()
-    store_id = int(form.get("store_id"))
-    year = int(form.get("year"))
-    month = int(form.get("month"))
+@app.post("/generate-shift", response_class=HTMLResponse)
+def generate_shift(
+    request: Request,
+    store_id: int = Form(...),
+    year: int = Form(...),
+    month: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    
+    context = get_common_context(request)
 
-    generate_shift_results(store_id, year, month, db)
+    try:
+        success = generate_shift_results_with_pulp(store_id, year, month, db)
+        if success:
+            message = f"{year}年{month}月のシフトを生成しました。"
+        else:
+            message = "シフト生成に失敗しました。"
+        context.update({
+            "request": request,
+            "message": message
+        })
+        return templates.TemplateResponse("generated.html", context)
 
-    return RedirectResponse(url="/shift/temp_result", status_code=303)
+    except Exception as e:
+        context.update({
+            "request": request,
+            "message": f"エラーが発生しました: {str(e)}"
+        })
+        return templates.TemplateResponse("generated.html", context)
 
 @app.get("/shift/temp_result")
 async def shift_temp_result(
@@ -661,6 +680,14 @@ async def shift_temp_result(
     staff_map = {s.id: s.name for s in staff_list}
     staff_ids = list(staff_map.keys())
 
+    def generate_time_options(open_time, close_time):
+        options = []
+
+        for hour in range(open_time, close_time + 1):
+                options.append(hour)
+
+        return options
+
     # 仮シフト結果の取得
     shift_results = []
     if staff_ids:
@@ -672,17 +699,12 @@ async def shift_temp_result(
 
     staff_shifts = {staff.id: {} for staff in staff_list}
     for r in shift_results:
-        if r.status is None:
-            continue
-        if r.status == "time":
-            start_str = r.start_time
-            end_str = "L" if r.end_time == store.close_hours else r.end_time
-            display = f"{start_str}〜{end_str}"
-        else:
-            display = r.status  # "×" など
+        start_str = r.start_time
+        end_str = "L" if r.end_time == store.close_hours else r.end_time
+        display = f"{start_str}〜{end_str}"
         staff_shifts[r.staff_id][r.day] = {
             "status": display
-        }
+    }
 
     # カレンダー日付生成
     first_day = date(year, month, 1)
@@ -713,10 +735,11 @@ async def shift_temp_result(
         "days_in_month": days_in_month,
         "years": years,
         "months": months,
-        "selected_year": year,
-        "selected_month": month,
+        "year": year,
+        "month": month,
         "staffs": staff_list,
-        "staff_shifts": staff_shifts
+        "staff_shifts": staff_shifts,
+        "time_options": generate_time_options(store.open_hours, store.close_hours)
     })
 
     return templates.TemplateResponse("shift_temp_result.html", context)

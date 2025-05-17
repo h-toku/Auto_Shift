@@ -21,9 +21,10 @@
         <button type="submit">表示</button>
         </form>
 
-
-        
-        <form method="post" action="/shift/generate" style="display: inline">
+        <form method="post" action="/generate-shift" style="display: inline">
+          <input type="hidden" name="store_id" value="{{ store_id }}">
+          <input type="hidden" name="year" value="{{ selected_year }}">
+          <input type="hidden" name="month" value="{{ selected_month }}">
           <button type="submit">シフト作成</button>
         </form>
     </div>

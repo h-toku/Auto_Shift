@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block header_title %}仮シフト{% endblock %}
+
+{% block content %}
+<h1>仮シフト生成</h1>
+
+<p>{{ message }}</p>  <!-- メッセージ表示 -->
+
+<div style="margin-top: 20px;">
+    <a href="/shift/temp_result">▶ 仮シフト確認</a><br>
+    <a href="/shift_request/overview">▶ シフト希望確認</a><br>
+    <a href="/">▶ ホームへ戻る</a>
+</div>
+{% endblock %}
