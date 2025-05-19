@@ -13,7 +13,7 @@ from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreD
 from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
-from schemas import ShiftRequestUpdate
+import re
 from shift_creator import generate_shift_results_with_pulp
 
 dotenv.load_dotenv()
@@ -48,6 +48,14 @@ def get_current_staff(request: Request, db: Session = Depends(get_db)):
             detail="スタッフが見つかりません"
         )
     return staff
+
+def generate_time_options(open_time, close_time):
+    options = []
+
+    for hour in range(open_time, close_time + 1):
+            options.append(hour)
+
+    return options
 
 @app.get("/login")
 async def login_page(request: Request):
@@ -287,14 +295,6 @@ async def shift_request_form(
     if not store:
         raise ValueError("店舗情報が見つかりません")
 
-    def generate_time_options(open_time, close_time):
-        options = []
-
-        for hour in range(open_time, close_time + 1):
-                options.append(hour)
-
-        return options
-
     # デフォルトは翌月
     today = datetime.today()
     if not year or not month:
@@ -523,10 +523,63 @@ async def shift_request_overview(
         "selected_year": year,
         "selected_month": month,
         "staffs": staff_list,
-        "staff_shifts": staff_shifts
+        "staff_shifts": staff_shifts,
+        "time_options": generate_time_options(store.open_hours, store.close_hours)
     })
 
     return templates.TemplateResponse("shift_request_overview.html", context)
+
+@app.post("/shift_request/overview/save")
+async def save_shift_request_overview(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    year = int(form.get("year"))
+    month = int(form.get("month"))
+    store_id = int(form.get("store_id"))
+
+    pattern_status = re.compile(r"shift_status\[(\d+)\]\[(\d+)\]")
+    pattern_start = re.compile(r"shift_start\[(\d+)\]\[(\d+)\]")
+    pattern_end = re.compile(r"shift_end\[(\d+)\]\[(\d+)\]")
+
+    result_data = {}
+
+    for key, value in form.items():
+        for pattern, field in [
+            (pattern_status, "status"),
+            (pattern_start, "start_time"),
+            (pattern_end, "end_time"),
+        ]:
+            m = pattern.match(key)
+            if m:
+                staff_id = int(m.group(1))
+                day = int(m.group(2))
+                result_data.setdefault(staff_id, {}).setdefault(day, {})[field] = value.strip()
+
+    for staff_id, days in result_data.items():
+        for day, data in days.items():
+            existing = db.query(ShiftRequest).filter_by(
+                staff_id=staff_id, year=year, month=month, day=day
+            ).first()
+            if existing:
+                existing.status = data.get("status")
+                existing.start_time = data.get("start_time") or None
+                existing.end_time = data.get("end_time") or None
+            else:
+                new_record = ShiftRequest(
+                    staff_id=staff_id,
+                    year=year,
+                    month=month,
+                    day=day,
+                    status=data.get("status"),
+                    start_time=data.get("start_time") or None,
+                    end_time=data.get("end_time") or None,
+                )
+                db.add(new_record)
+    db.commit()
+
+    # ✅ store_idを含めてリダイレクト
+    redirect_url = f"/shift_request/overview?year={year}&month={month}&store_id={store_id}"
+    return RedirectResponse(url=redirect_url, status_code=303)
+
 
 
 @app.get("/store_settings/default")
@@ -724,6 +777,27 @@ async def shift_temp_result(
         })
         d += timedelta(days=1)
 
+    shift_requests = []
+    if staff_ids:
+        shift_requests = db.query(ShiftRequest).filter(
+            ShiftRequest.year == year,
+            ShiftRequest.month == month,
+            ShiftRequest.staff_id.in_(staff_ids)
+        ).all()
+
+    # 辞書に変換（staff_id → day → status）
+    staff_requests = {staff.id: {} for staff in staff_list}
+    for r in shift_requests:
+        if r.status == "time":
+            start_str = r.start_time
+            end_str = "L" if r.end_time == r.staff.store.close_hours else r.end_time
+            display = f"{start_str}〜{end_str}"
+        else:
+            display = r.status or "-"
+        staff_requests[r.staff_id][r.day] = {
+            "status": display
+        }
+
     # 年・月の選択肢生成
     current_year = today.year
     years = [current_year - 1, current_year, current_year + 1]
@@ -739,8 +813,69 @@ async def shift_temp_result(
         "month": month,
         "staffs": staff_list,
         "staff_shifts": staff_shifts,
+        "shift_requests": staff_requests,
         "time_options": generate_time_options(store.open_hours, store.close_hours)
     })
 
     return templates.TemplateResponse("shift_temp_result.html", context)
+
+@app.post("/shift_temp_result/save")
+async def save_shift_temp_result(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    action = form.get("action")  # "save" または "publish"
+
+    year = int(form.get("year"))
+    month = int(form.get("month"))
+
+    result_data = {}
+    import re
+    for key, value in form.items():
+        if key.startswith("result["):
+            m = re.match(r"result\[(\d+)\]\[(\d+)\]", key)
+            if m:
+                staff_id = int(m.group(1))
+                day = int(m.group(2))
+                if staff_id not in result_data:
+                    result_data[staff_id] = {}
+                result_data[staff_id][day] = value
+
+    for staff_id, days in result_data.items():
+        for day, status in days.items():
+            existing = db.query(Shiftresult).filter_by(
+                staff_id=staff_id, day=day, year=year, month=month
+            ).first()
+            if existing:
+                existing.status = status
+            else:
+                new_shift = Shiftresult(
+                    staff_id=staff_id,
+                    day=day,
+                    year=year,
+                    month=month,
+                    status=status
+                )
+                db.add(new_shift)
+    db.commit()
+
+    if action == "publish":
+        for staff_id, days in result_data.items():
+            for day, status in days.items():
+                existing = db.query(Shift).filter_by(
+                    staff_id=staff_id, day=day, year=year, month=month
+                ).first()
+                if existing:
+                    existing.status = status
+                else:
+                    new_shift = Shift(
+                        staff_id=staff_id,
+                        day=day,
+                        year=year,
+                        month=month,
+                        status=status
+                    )
+                    db.add(new_shift)
+        db.commit()
+
+    return RedirectResponse(url=f"/shift/temp_result?year={year}&month={month}", status_code=303)
+
 

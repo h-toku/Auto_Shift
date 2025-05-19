@@ -4,10 +4,10 @@
 
 {% block content %}
 <body>
-    <h1>仮シフト確認</h1>
 
-    <div class="select-year-month">
-    <form method="get" action="/shift/temp_result">
+    <!-- 上部：年月セレクト + ボタン（右上） -->
+    <div class="select-year-month" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+      <form method="get" action="/shift/temp_result" id="shiftForm" style="display: flex; align-items: center; gap: 0.5em;">
         <select name="year">
             {% for y in years %}
             <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
@@ -19,10 +19,23 @@
             {% endfor %}
         </select>月
         <button type="submit">表示</button>
-    </form>
-    </div>
+      </form>
+  
+      <div style="display: flex; justify-content: flex-end; gap: 0.5em; margin-bottom: 1em;">
+        <form method="post" action="/shift_request/overview/save">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="store_id" value="{{ store_id }}">
+          <button type="submit" class="btn btn-primary">保存</button>
+        </form>
+        <form method="post" action="/generate-shift">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="store_id" value="{{ store_id }}">
+          <button type="submit" class="btn btn-primary">シフト作成</button>
+        </form>
 
-    <div class="scrollable-table-wrapper">
+      <div class="scrollable-table-wrapper">
         <table class="calendar-table">
           <thead>
             <tr>
@@ -40,19 +53,93 @@
               </td>
               {% for staff in staffs %}
               <td class="{{ day.style_class }}">
-                {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
-                {% if shift %}
-                {% if shift.status in ["○", "×"] %}
-                <span style="font-size: 25px;">{{ shift.status }}</span>
-              {% else %}
-                <span>{{ shift.status }}</span>
-              {% endif %}
+                {# 希望シフト表示（編集不可） #}
+                {% set request = shift_requests.get(staff.id, {}).get(day.day) %}
+                  <div>
+                    {% if request %}
+                      {% if request.status == "time" %}
+                        {{ request.start_time }}〜{{ request.end_time }}
+                      {% else %}
+                        {{ request.status }}
+                      {% endif %}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </div>
+                
+                {# 生成シフト編集部分 #}
+                {% set result = staff_shifts.get(staff.id, {}).get(day.day) %}
+                <select name="result_status[{{ staff.id }}][{{ day.day }}]" class="result-status-select" data-staff="{{ staff.id }}" data-day="{{ day.day }}">
+                  <option value="" {% if not result or not result.status %}selected{% endif %}>--</option>
+                  <option value="×" {% if result and result.status == "×" %}selected{% endif %}>×</option>
+                  <option value="○" {% if result and result.status == "○" %}selected{% endif %}>○</option>
+                  <option value="time" {% if result and result.status == "time" %}selected{% endif %}>time</option>
+                </select><br>
+    
+                <select
+                  name="result_start[{{ staff.id }}][{{ day.day }}]"
+                  class="result-start-time-{{ staff.id }}-{{ day.day }}"
+                  {% if not result or result.status != "time" %}disabled{% endif %}
+                >
+                  <option value="">--</option>
+                  {% for t in time_options %}
+                  <option value="{{ t }}" {% if result and result.start_time == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+                <br>
+                ≀
+                <br>
+                <select
+                  name="result_end[{{ staff.id }}][{{ day.day }}]"
+                  class="result-end-time-{{ staff.id }}-{{ day.day }}"
+                  {% if not result or result.status != "time" %}disabled{% endif %}
+                >
+                  <option value="">--</option>
+                  {% for t in time_options %}
+                  <option value="{{ t }}" {% if result and result.end_time == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
               </td>
-              {% endif %}
               {% endfor %}
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+
+    </form>
+{% endblock %}
+
+{% block script %}
+<script>
+  // form送信時にdisabledを外してPOSTできるようにする
+  document.getElementById('shiftForm').addEventListener('submit', function () {
+    document.querySelectorAll('#shiftForm select:disabled').forEach(function(el) {
+      el.disabled = false;
+    });
+  });
+
+  // ステータス選択に応じて時間のON/OFF切り替え
+  document.querySelectorAll('.result-status-select').forEach(function(select) {
+    function toggleTimeSelect() {
+      const staff = select.dataset.staff;
+      const day = select.dataset.day;
+      const startSelect = document.querySelector(`select.result-start-time-${staff}-${day}`);
+      const endSelect = document.querySelector(`select.result-end-time-${staff}-${day}`);
+
+      if (select.value === 'time') {
+        startSelect.disabled = false;
+        endSelect.disabled = false;
+      } else {
+        startSelect.disabled = true;
+        endSelect.disabled = true;
+        startSelect.value = "";
+        endSelect.value = "";
+      }
+    }
+
+    select.addEventListener('change', toggleTimeSelect);
+    toggleTimeSelect();
+  });
+    </script>
 {% endblock %}

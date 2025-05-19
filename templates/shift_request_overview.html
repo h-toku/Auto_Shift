@@ -4,63 +4,125 @@
 
 {% block content %}
 <body>
-    <h1>シフト希望確認</h1>
-
-    <div class="select-year-month">
-    <form method="get" action="/shift_request/overview">
-        <select name="year">
-            {% for y in years %}
-            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
-        </select>年
-        <select name="month">
-            {% for m in months %}
-            <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
-        </select>月
-        <button type="submit">表示</button>
-        </form>
-
-        <form method="post" action="/generate-shift" style="display: inline">
-          <input type="hidden" name="store_id" value="{{ store_id }}">
-          <input type="hidden" name="year" value="{{ selected_year }}">
-          <input type="hidden" name="month" value="{{ selected_month }}">
-          <button type="submit">シフト作成</button>
-        </form>
+  <div class="select-year-month" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+  
+    <!-- 表示フォーム（左寄せ） -->
+    <form method="get" action="/shift_request/overview" style="display: flex; align-items: center; gap: 0.5em;">
+      <select name="year">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>年
+      <select name="month">
+        {% for m in months %}
+        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>月
+      <button type="submit">表示</button>
+    </form>
+  
+    <!-- 保存フォーム（右寄せ、見た目だけ） -->
+    <div style="display: flex; justify-content: flex-end; gap: 0.5em; margin-bottom: 1em;">
+      <form method="post" action="/shift_request/overview/save">
+        <input type="hidden" name="year" value="{{ selected_year }}">
+        <input type="hidden" name="month" value="{{ selected_month }}">
+        <input type="hidden" name="store_id" value="{{ store_id }}">
+        <button type="submit" class="btn btn-primary">保存</button>
+      </form>
+      <form method="post" action="/generate-shift">
+        <input type="hidden" name="year" value="{{ selected_year }}">
+        <input type="hidden" name="month" value="{{ selected_month }}">
+        <input type="hidden" name="store_id" value="{{ store_id }}">
+        <button type="submit" class="btn btn-primary">シフト作成</button>
+      </form>
     </div>
+  
+  </div>
 
-<div class="scrollable-table-wrapper">
-      <table class="calendar-table">
-        <thead>
-          <tr>
-            <th class="sticky-col sticky-header">日付</th>
-            {% for staff in staffs %}
-            <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
+      <div class="scrollable-table-wrapper">
+        <table class="calendar-table">
+          <thead>
+            <tr>
+              <th class="sticky-col sticky-header">日付</th>
+              {% for staff in staffs %}
+              <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for day in days_in_month %}
+            <tr>
+              <td class="sticky-col {{ day.style_class }}">
+                {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+              </td>
+              {% for staff in staffs %}
+              <td class="{{ day.style_class }}">
+                {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
+                <select name="shift_status[{{ staff.id }}][{{ day.day }}]" class="status-select" data-staff="{{ staff.id }}" data-day="{{ day.day }}">
+                  <option value="" {% if not shift or not shift.status %}selected{% endif %}>--</option>
+                  <option value="×" {% if shift and shift.status == "×" %}selected{% endif %}>×</option>
+                  <option value="○" {% if shift and shift.status == "○" %}selected{% endif %}>○</option>
+                  <option value="time" {% if shift and shift.status == "time" %}selected{% endif %}>time</option>
+                </select><br>
+      
+                <select
+                  name="shift_start[{{ staff.id }}][{{ day.day }}]"
+                  class="time-select start-time-{{ staff.id }}-{{ day.day }}"
+                  {% if not shift or shift.status != "time" %}disabled{% endif %}
+                >
+                  <option value="">--</option>
+                  {% for t in time_options %}
+                  <option value="{{ t }}" {% if shift and shift.start_time == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+                <br>
+                ≀
+                <br>
+                <select
+                  name="shift_end[{{ staff.id }}][{{ day.day }}]"
+                  class="time-select end-time-{{ staff.id }}-{{ day.day }}"
+                  {% if not shift or shift.status != "time" %}disabled{% endif %}
+                >
+                  <option value="">--</option>
+                  {% for t in time_options %}
+                  <option value="{{ t }}" {% if shift and shift.end_time == t %}selected{% endif %}>{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              {% endfor %}
+            </tr>
             {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for day in days_in_month %}
-          <tr>
-            <td class="sticky-col {{ day.style_class }}">
-              {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
-            </td>
-            {% for staff in staffs %}
-            <td class="{{ day.style_class }}">
-              {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
-              {% if shift %}
-              {% if shift.status in ["○", "×"] %}
-              <span style="font-size: 25px;">{{ shift.status }}</span>
-            {% else %}
-              <span>{{ shift.status }}</span>
-            {% endif %}
-            </td>
-            {% endif %}
-            {% endfor %}
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+          </tbody>
+        </table>
+      </div>
+    </form>
+</body>
+{% endblock %}
 
+{% block script %}
+<script>
+  // ページ読み込み時とstatus選択変更時にstart/endのdisabled制御
+  document.querySelectorAll('.status-select').forEach(function(select) {
+    function toggleTimeSelect() {
+      const tr = select.closest('td');
+      const staff = select.dataset.staff;
+      const day = select.dataset.day;
+      const startSelect = document.querySelector(`select.start-time-${staff}-${day}`);
+      const endSelect = document.querySelector(`select.end-time-${staff}-${day}`);
+
+      if (select.value === 'time') {
+        startSelect.disabled = false;
+        endSelect.disabled = false;
+      } else {
+        startSelect.disabled = true;
+        endSelect.disabled = true;
+        startSelect.value = "";
+        endSelect.value = "";
+      }
+    }
+
+    select.addEventListener('change', toggleTimeSelect);
+    toggleTimeSelect();  // 初期化
+  });
+</script>
 {% endblock %}

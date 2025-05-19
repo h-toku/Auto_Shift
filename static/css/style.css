@@ -77,6 +77,15 @@ button {
     cursor: pointer;
 }
 
+.right_button {
+    padding: 5px 10px;
+    background-color: #ff6347;
+    color: white;
+    border: none;
+    cursor: pointer;
+    align-items: flex-end;
+}
+
 button:hover {
     background-color: #e53e3e;
 }
@@ -159,13 +168,12 @@ button:hover {
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
-.select-year-month {
-    margin-bottom: 20px;
-}
-
 .select-year-month select {
     padding: 5px;
     margin-right: 5px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
 }
 
 /* レスポンシブ対応 */
@@ -305,7 +313,7 @@ button:hover {
 /* スクロール可能なカレンダー */
 .scroll-container {
     display: flex;
-    height: 500px;
+    height: 800px;
     overflow: hidden;
     border: 1px solid #ccc;
     margin-top: 20px;
@@ -334,21 +342,15 @@ button:hover {
 }
 
 .calendar-table select {
-    width: 100%;
-    box-sizing: fixed;
-    padding: 4px;
+    background-color: #f0f0f0 !important;
+    border: 1px solid #999 !important;
+    padding: 5px !important;
+    font-size: 16px !important;
 }
 
 .calendar-table select:focus {
     outline: none;
     border: 1px solid #007BFF;
-}
-
-.time-select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 4px;
-    font-size: 5px;
 }
 
 .time-select:focus {
@@ -370,7 +372,7 @@ button:hover {
 }
 
 .scrollable-table-wrapper {
-    max-height: 400px;
+    max-height: 800px;
     /* 好きな高さに調整 */
     overflow: auto;
     /* 縦横スクロール */
