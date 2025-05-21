@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block header_title %}スタッフ登録{% endblock %}
+
+{% block content %}
+<h1>スタッフ登録完了</h1>
+
+<p>{{ message }}</p>  <!-- メッセージ表示 -->
+
+<div style="margin-top: 20px;">
+    <a href="/staff/register">▶ スタッフ登録</a><br>
+    <a href="/staff/manage">▶ スタッフ管理</a><br>
+    <a href="/shift_request/overview">▶ シフト希望確認</a><br>
+    <a href="/">▶ ホームへ戻る</a>
+</div>
+{% endblock %}

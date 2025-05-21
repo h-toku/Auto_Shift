@@ -58,7 +58,7 @@ def add_skill_balance_constraint(prob, x, d, h, staffs, target):
     actual = lpSum(x[d, h, s.id] for s in staffs)
     shortage = LpVariable(f"shortage_{d}_{h}", 0)
     excess = LpVariable(f"excess_{d}_{h}", 0)
-    prob += actual + shortage - excess == target
+    prob += actual - excess == target
     return shortage, excess
 
 
@@ -121,6 +121,12 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
             underwork_penalties.append(under)
             overwork_penalties.append(over)
 
+    for s in staffs:
+    if s.employment_type == "社員":
+        for d in range(1, days_in_month + 1):
+            for h in hours:
+                prob += x[d, h, s.id] == 1 
+
     # 希望時間外勤務 & 未成年制限
     for s in staffs:
         for d in range(1, days_in_month + 1):
@@ -144,18 +150,15 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
                 conf["peak_people"]
             )
 
-            requested = sum(1 for s in staffs if h in request_map[s.id].get(d, []))
-            target = min(required, requested)
+            target = required
 
             shortage, excess = add_skill_balance_constraint(prob, x, d, h, staffs, target)
-            shortage_penalties.append(shortage)
             excess_penalties.append(excess)
 
     # 目的関数：ペナルティ最小化（重みを調整可能）
     prob += (
         10 * lpSum(underwork_penalties) +
         10 * lpSum(overwork_penalties) +
-        5 * lpSum(shortage_penalties) +
         1 * lpSum(excess_penalties)
     )
 

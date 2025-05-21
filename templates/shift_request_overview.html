@@ -4,41 +4,44 @@
 
 {% block content %}
 <body>
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+  <form method="post" action="/shift_request/overview/save">
+    <input type="hidden" name="year" value="{{ selected_year }}">
+    <input type="hidden" name="month" value="{{ selected_month }}">
+    <input type="hidden" name="store_id" value="{{ store_id }}">
 
-    <!-- 左側：年・月・表示ボタン -->
-    <form method="get" action="/shift_request/overview" style="display: flex; align-items: center; gap: 0.5em;">
-      <select name="year">
-        {% for y in years %}
-        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-      </select>年
-      <select name="month">
-        {% for m in months %}
-        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-      </select>月
-      <button type="submit">表示</button>
-    </form>
-  
-    <!-- 右側：保存・シフト作成ボタン -->
-    <div style="display: flex; align-items: center; gap: 0.5em;">
-      <form method="post" action="/shift_request/overview/save" style="margin: 0;">
-        <input type="hidden" name="year" value="{{ selected_year }}">
-        <input type="hidden" name="month" value="{{ selected_month }}">
-        <input type="hidden" name="store_id" value="{{ store_id }}">
-        <button type="submit" class="btn btn-primary">保存</button>
-      </form>
-      <form method="post" action="/generate-shift" style="margin: 0;">
-        <input type="hidden" name="year" value="{{ selected_year }}">
-        <input type="hidden" name="month" value="{{ selected_month }}">
-        <input type="hidden" name="store_id" value="{{ store_id }}">
-        <button type="submit" class="btn btn-primary">シフト作成</button>
-      </form>
-    </div>
-  
+    {% if message %}
+  <div class="alert-message">
+    {{ message }}
   </div>
-
+{% endif %}
+  
+    <!-- 上部ボタンとセレクトを横並び＆同じ高さに配置 -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+      
+      <!-- 左：年・月・表示 -->
+      <div style="display: flex; align-items: center; gap: 0.5em;">
+        <select name="year">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>年
+        <select name="month">
+          {% for m in months %}
+          <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>月
+        <button type="submit" formaction="/shift_request/overview" formmethod="get">表示</button>
+      </div>
+  
+      <!-- 右：保存・シフト作成 -->
+      <div style="display: flex; gap: 0.5em;">
+        <button type="submit" name="action" value="save" class="btn btn-primary">保存</button>
+        <button type="submit" name="action" value="generate" class="btn btn-secondary">シフト作成</button>
+      </div>
+  
+    </div>
+    
+      <!-- テーブル本体 -->
       <div class="scrollable-table-wrapper">
         <table class="calendar-table">
           <thead>
@@ -64,25 +67,15 @@
                   <option value="O" {% if shift and shift.status == "O" %}selected{% endif %}>O</option>
                   <option value="time" {% if shift and shift.status == "time" %}selected{% endif %}>time</option>
                 </select><br>
-      
-                <select
-                  name="shift_start[{{ staff.id }}][{{ day.day }}]"
-                  class="time-select start-time-{{ staff.id }}-{{ day.day }}"
-                  {% if not shift or shift.status != "time" %}disabled{% endif %}
-                >
+    
+                <select name="shift_start[{{ staff.id }}][{{ day.day }}]" class="time-select start-time-{{ staff.id }}-{{ day.day }}" {% if not shift or shift.status != "time" %}disabled{% endif %}>
                   <option value="">--</option>
                   {% for t in time_options %}
                   <option value="{{ t }}" {% if shift and shift.start_time == t %}selected{% endif %}>{{ t }}</option>
                   {% endfor %}
                 </select>
-                <br>
-                ≀
-                <br>
-                <select
-                  name="shift_end[{{ staff.id }}][{{ day.day }}]"
-                  class="time-select end-time-{{ staff.id }}-{{ day.day }}"
-                  {% if not shift or shift.status != "time" %}disabled{% endif %}
-                >
+                <br>≀<br>
+                <select name="shift_end[{{ staff.id }}][{{ day.day }}]" class="time-select end-time-{{ staff.id }}-{{ day.day }}" {% if not shift or shift.status != "time" %}disabled{% endif %}>
                   <option value="">--</option>
                   {% for t in time_options %}
                   <option value="{{ t }}" {% if shift and shift.end_time == t %}selected{% endif %}>{{ t }}</option>
@@ -96,6 +89,7 @@
         </table>
       </div>
     </form>
+    
 </body>
 {% endblock %}
 

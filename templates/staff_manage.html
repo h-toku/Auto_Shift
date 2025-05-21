@@ -7,6 +7,12 @@
 
 <form id="staffForm" action="/staff/update_bulk" method="POST">  
 
+    {% if message %}
+    <div class="alert-message">
+      {{ message }}
+    </div>
+  {% endif %}
+
 {% if staffs %}
 <div class="staff-table-container">
 <table class="staff-table">

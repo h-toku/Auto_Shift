@@ -5,27 +5,38 @@
 <div class="calendar-container">
   <h2>シフト希望カレンダー</h2>
 
-  <div class="select-year-month">
-    <form method="get" action="/shift_request">
-      <select name="year">
-        {% for y in years %}
-        <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-      </select>年
-      <select name="month">
-        {% for m in months %}
-        <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
-        {% endfor %}
-      </select>月
-      <button type="submit">表示</button>
-    </form>
-  </div>
+  <body>
+    <form method="post" action="/shift_request/update">
+      <input type="hidden" name="year" value="{{ year }}">
+      <input type="hidden" name="month" value="{{ month }}">
+      <input type="hidden" name="store_id" value="{{ store_id }}">
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+      
+        <!-- 左：年・月・表示 -->
+        <div style="display: flex; align-items: center; gap: 0.5em;">
+          <select name="year">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>年
+          <select name="month">
+            {% for m in months %}
+            <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+          </select>月
+          <button type="submit" formaction="/shift_request" formmethod="get">表示</button>
+        </div>
+        <div style="display: flex; gap: 0.5em;">
+          <button type="submit" name="action" value="update" class="btn btn-primary">保存</button>
+        </div>
+    
+      </div>
 
 {% set mid = (dates | length) // 2 + (dates | length) % 2 %}
 {% set first_half = dates[:mid] %}
 {% set second_half = dates[mid:] %}
 
-<form method="post" action="/shift_request/update">
   <table class="calendar-table">
     <tbody>
       <!-- 前半：日付 -->
@@ -46,8 +57,8 @@
           {% if date.editable %}
             <select name="status_{{ date.iso }}">
               <option value="">--</option>
-              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>×</option>
-              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>○</option>
+              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>X</option>
+              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>O</option>
               <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>time</option>
             </select><br>
 
@@ -97,9 +108,9 @@
           {% if date.editable %}
             <select name="status_{{ date.iso }}">
               <option value="">--</option>
-              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>×</option>
-              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>○</option>
-              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
+              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>X</option>
+              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>O</option>
+              <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>time</option>
             </select><br>
 
             <!-- 開始時間 -->
@@ -131,15 +142,11 @@
       </tr>
     </tbody>
   </table>
-
-    {% if editable %}
-    <div style="margin-top: 20px;">
-      <button type="submit">保存</button>
-    </div>
-    {% endif %}
   </form>
-</div>
+</body>
+{% endblock %}
 
+{% block script %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
     const allStatusSelects = document.querySelectorAll('select[name^="status_"]');

@@ -6,6 +6,12 @@
 
 <h2>店舗設定</h2>
 
+{% if message %}
+  <div class="alert-message">
+    {{ message }}
+  </div>
+{% endif %}
+
 <form method="post" action="/store_settings/default/save">
   <table border="1">
     <tr>
@@ -42,9 +48,9 @@
       </td>
       <td><input type="number" name="{{ day_type }}_hall" value="{{ settings[day_type].hall|default(0) }}" min="0">点</td>
       <td><input type="number" name="{{ day_type }}_leadership" value="{{ settings[day_type].leadership|default(0) }}" min="0">点</td>
-      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].peak_people|default(0) }}" min="0">人</td>
-      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].open_people|default(0) }}" min="0">人</td>
-      <td><input type="number" name="{{ day_type }}_people" value="{{ settings[day_type].close_people|default(0) }}" min="0">人</td>
+      <td><input type="number" name="{{ day_type }}_peak_people" value="{{ settings[day_type].peak_people|default(0) }}" min="0">人</td>
+      <td><input type="number" name="{{ day_type }}_open_people" value="{{ settings[day_type].open_people|default(0) }}" min="0">人</td>
+      <td><input type="number" name="{{ day_type }}_close_people" value="{{ settings[day_type].close_people|default(0) }}" min="0">人</td>
     </tr>
     {% endfor %}
   </table>

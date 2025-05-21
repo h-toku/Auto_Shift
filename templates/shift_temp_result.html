@@ -4,39 +4,42 @@
 
 {% block content %}
 <body>
+  <form method="post" action="/shift/temp_result/save">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <input type="hidden" name="store_id" value="{{ store_id }}">
 
-    <!-- 上部：年月セレクト + ボタン（右上） -->
-    <div class="select-year-month" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
-      <form method="get" action="/shift/temp_result" id="shiftForm" style="display: flex; align-items: center; gap: 0.5em;">
+    {% if message %}
+    <div class="alert-message">
+      {{ message }}
+    </div>
+  {% endif %}
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+      
+      <!-- 左：年・月・表示 -->
+      <div style="display: flex; align-items: center; gap: 0.5em;">
         <select name="year">
-            {% for y in years %}
-            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
-            {% endfor %}
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
         </select>年
         <select name="month">
-            {% for m in months %}
-            <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
-            {% endfor %}
+          {% for m in months %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
         </select>月
-        <button type="submit">表示</button>
-      </form>
-  
-      <div style="display: flex; justify-content: flex-end; gap: 0.5em; margin-bottom: 1em;">
-        <form method="post" action="/shift/temp_result/save">
-          <input type="hidden" name="year" value="{{ year }}">
-          <input type="hidden" name="month" value="{{ month }}">
-          <input type="hidden" name="store_id" value="{{ store_id }}">
-          <button type="submit" class="btn btn-primary">一時保存</button>
-        </form>
-        <form method="post" action="/publish-shift">
-          <input type="hidden" name="year" value="{{ year }}">
-          <input type="hidden" name="month" value="{{ month }}">
-          <input type="hidden" name="store_id" value="{{ store_id }}">
-          <button type="submit" class="btn btn-primary">シフト公開</button>
-        </form>
+        <button type="submit" formaction="/shift/temp_result" formmethod="get">表示</button>
       </div>
+  
+      <div style="display: flex; gap: 0.5em;">
+        <button type="submit" name="action" value="save" class="btn btn-primary">一時保存</button>
+        <button type="submit" name="action" value="publish"class="btn btn-secondary">公開</button>
+      </div>
+  
     </div>
 
+      <!-- テーブル本体 -->
       <div class="scrollable-table-wrapper">
         <table class="calendar-table">
           <thead>
@@ -71,17 +74,10 @@
                 
                 {# 生成シフト編集部分 #}
                 {% set result = staff_shifts.get(staff.id, {}).get(day.day) %}
-                <select name="result_status[{{ staff.id }}][{{ day.day }}]" class="result-status-select" data-staff="{{ staff.id }}" data-day="{{ day.day }}">
-                  <option value="" {% if not result or not result.status %}selected{% endif %}>--</option>
-                  <option value="X" {% if result and result.status == "X" %}selected{% endif %}>X</option>
-                  <option value="O" {% if result and result.status == "O" %}selected{% endif %}>O</option>
-                  <option value="time" {% if result and result.status == "time" %}selected{% endif %}>time</option>
-                </select><br>
     
                 <select
                   name="result_start[{{ staff.id }}][{{ day.day }}]"
                   class="result-start-time-{{ staff.id }}-{{ day.day }}"
-                  {% if not result or result.status != "time" %}disabled{% endif %}
                 >
                   <option value="">--</option>
                   {% for t in time_options %}
@@ -94,7 +90,6 @@
                 <select
                   name="result_end[{{ staff.id }}][{{ day.day }}]"
                   class="result-end-time-{{ staff.id }}-{{ day.day }}"
-                  {% if not result or result.status != "time" %}disabled{% endif %}
                 >
                   <option value="">--</option>
                   {% for t in time_options %}
@@ -108,8 +103,8 @@
           </tbody>
         </table>
       </div>
-
     </form>
+  </body>
 {% endblock %}
 
 {% block script %}
