@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from models import Staff, ShiftRequest, Store, Shiftresult, StoreDefaultSkillRequirement
 from pulp import LpProblem, LpVariable, LpMinimize, lpSum, LpBinary
 import jpholiday
+from itertools import groupby
+
 
 def get_store_config(db: Session, store_id: int):
     configs = db.query(StoreDefaultSkillRequirement).filter(
@@ -26,6 +28,7 @@ def get_store_config(db: Session, store_id: int):
         }
     return store_config
 
+
 def get_day_type(year: int, month: int, day: int) -> str:
     date = datetime(year, month, day)
     if jpholiday.is_holiday(date) or date.weekday() == 6:
@@ -35,6 +38,29 @@ def get_day_type(year: int, month: int, day: int) -> str:
     elif date.weekday() == 4:
         return 'friday'
     return 'weekday'
+
+
+def add_work_constraints(prob, x, is_worked, d, s_id, hours):
+    prob += is_worked[d, s_id] <= lpSum(x[d, h, s_id] for h in hours)
+    prob += lpSum(x[d, h, s_id] for h in hours) <= is_worked[d, s_id] * len(hours)
+
+
+def add_hour_penalty_constraints(prob, x, d, s_id, hours):
+    work_hours = lpSum(x[d, h, s_id] for h in hours)
+    under = LpVariable(f"under_{d}_{s_id}", 0, 1, LpBinary)
+    over = LpVariable(f"over_{d}_{s_id}", 0, 1, LpBinary)
+    prob += work_hours >= 4 - 1000 * under
+    prob += work_hours <= 8 + 1000 * over
+    return under, over
+
+
+def add_skill_balance_constraint(prob, x, d, h, staffs, target):
+    actual = lpSum(x[d, h, s.id] for s in staffs)
+    shortage = LpVariable(f"shortage_{d}_{h}", 0)
+    excess = LpVariable(f"excess_{d}_{h}", 0)
+    prob += actual + shortage - excess == target
+    return shortage, excess
+
 
 def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: Session):
     store = db.query(Store).filter(Store.id == store_id).first()
@@ -52,7 +78,6 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
 
     store_config = get_store_config(db, store_id)
 
-    # 対象月の日数
     next_month = datetime(year + int(month == 12), (month % 12) + 1, 1)
     days_in_month = (next_month - timedelta(days=1)).day
 
@@ -60,20 +85,16 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
     close_hour = max(conf["close"] for conf in store_config.values())
     hours = list(range(open_hour, close_hour))
 
-    staff_map = {s.id: s for s in staffs}
-
-    # シフト希望マップ作成
     request_map = defaultdict(lambda: defaultdict(set))
     for req in shift_requests:
-        if not req.status or req.status.strip() == "×":
+        if not req.status or req.status.strip() == "X":
             continue
         hours_range = range(store.open_hours, store.close_hours)
-        if req.status == "○":
+        if req.status == "O":
             request_map[req.staff_id][req.day].update(hours_range)
         elif req.status == "time" and req.start_time is not None and req.end_time is not None:
             request_map[req.staff_id][req.day].update(range(req.start_time, req.end_time))
 
-    # 既存の仮シフト削除
     db.query(Shiftresult).filter(
         Shiftresult.staff_id.in_(staff_ids),
         Shiftresult.year == year,
@@ -81,32 +102,26 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
     ).delete(synchronize_session=False)
     db.commit()
 
-    # 最適化モデル作成
     prob = LpProblem("ShiftScheduling", LpMinimize)
-    x = {}  # 勤務バイナリ
-    is_worked = {}  # 出勤日判定
-    hour_penalties = []
+    x = {}
+    is_worked = {}
+    underwork_penalties = []
+    overwork_penalties = []
+    shortage_penalties = []
+    excess_penalties = []
 
     for s in staffs:
         for d in range(1, days_in_month + 1):
             is_worked[d, s.id] = LpVariable(f"is_worked_{d}_{s.id}", 0, 1, LpBinary)
-            daily_hours = [LpVariable(f"x_{d}_{h}_{s.id}", 0, 1, LpBinary) for h in hours]
-            for h, var in zip(hours, daily_hours):
-                x[d, h, s.id] = var
+            for h in hours:
+                x[d, h, s.id] = LpVariable(f"x_{d}_{h}_{s.id}", 0, 1, LpBinary)
 
-            # 出勤判定との関係
-            prob += is_worked[d, s.id] <= lpSum(x[d, h, s.id] for h in hours)
-            prob += lpSum(x[d, h, s.id] for h in hours) <= is_worked[d, s.id] * len(hours)
+            add_work_constraints(prob, x, is_worked, d, s.id, hours)
+            under, over = add_hour_penalty_constraints(prob, x, d, s.id, hours)
+            underwork_penalties.append(under)
+            overwork_penalties.append(over)
 
-            # 勤務時間制約（4〜8時間）
-            work_hours = lpSum(x[d, h, s.id] for h in hours)
-            under = LpVariable(f"under_{d}_{s.id}", 0, 1, LpBinary)
-            over = LpVariable(f"over_{d}_{s.id}", 0, 1, LpBinary)
-            prob += work_hours >= 4 - 1000 * under
-            prob += work_hours <= 8 + 1000 * over
-            hour_penalties.extend([under, over])
-
-    # 希望時間外勤務・未成年夜勤制限
+    # 希望時間外勤務 & 未成年制限
     for s in staffs:
         for d in range(1, days_in_month + 1):
             for h in hours:
@@ -115,8 +130,6 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
                 if s.employment_type == "未成年バイト" and h >= 22:
                     prob += x[d, h, s.id] == 0
 
-    # スキル人数調整
-    shortage_penalties, excess_penalties = [], []
     for d in range(1, days_in_month + 1):
         day_type = get_day_type(year, month, d)
         conf = store_config[day_type]
@@ -134,25 +147,40 @@ def generate_shift_results_with_pulp(store_id: int, year: int, month: int, db: S
             requested = sum(1 for s in staffs if h in request_map[s.id].get(d, []))
             target = min(required, requested)
 
-            actual = lpSum(x[d, h, s.id] for s in staffs)
-            shortage = LpVariable(f"shortage_{d}_{h}", 0)
-            excess = LpVariable(f"excess_{d}_{h}", 0)
-            prob += actual + shortage - excess == target
+            shortage, excess = add_skill_balance_constraint(prob, x, d, h, staffs, target)
             shortage_penalties.append(shortage)
             excess_penalties.append(excess)
 
-    # 目的関数：ペナルティ最小化
-    prob += lpSum(hour_penalties + shortage_penalties + excess_penalties)
+    # 目的関数：ペナルティ最小化（重みを調整可能）
+    prob += (
+        10 * lpSum(underwork_penalties) +
+        10 * lpSum(overwork_penalties) +
+        5 * lpSum(shortage_penalties) +
+        1 * lpSum(excess_penalties)
+    )
+
     prob.solve()
 
-    # 結果保存
+    # 結果保存（高速化）
+    shift_results = []
     for s in staffs:
         for d in range(1, days_in_month + 1):
-            for h in hours:
-                if x[d, h, s.id].varValue == 1:
-                    db.add(Shiftresult(
-                        store_id=store_id, staff_id=s.id, year=year,
-                        month=month, day=d, hour=h
+            # 勤務時間のリストを抽出
+            work_hours = [h for h in hours if x[d, h, s.id].varValue == 1]
+
+            # 連続した時間帯にまとめる
+            for _, group in groupby(enumerate(work_hours), lambda x: x[0] - x[1]):
+                hour_block = list(map(lambda x: x[1], group))
+                if hour_block:
+                    shift_results.append(Shiftresult(
+                        staff_id=s.id,
+                        year=year,
+                        month=month,
+                        day=d,
+                        start_time=min(hour_block),
+                        end_time=max(hour_block) + 1  # 終了時間は非包含なので +1
                     ))
+
+    db.bulk_save_objects(shift_results)
     db.commit()
     return True

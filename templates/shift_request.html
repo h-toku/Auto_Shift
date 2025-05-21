@@ -46,8 +46,8 @@
           {% if date.editable %}
             <select name="status_{{ date.iso }}">
               <option value="">--</option>
-              <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
-              <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>×</option>
+              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>○</option>
               <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>time</option>
             </select><br>
 
@@ -97,8 +97,8 @@
           {% if date.editable %}
             <select name="status_{{ date.iso }}">
               <option value="">--</option>
-              <option value="×" {% if shift_data[date.iso].status == "×" %}selected{% endif %}>×</option>
-              <option value="○" {% if shift_data[date.iso].status == "○" %}selected{% endif %}>○</option>
+              <option value="X" {% if shift_data[date.iso].status == "X" %}selected{% endif %}>×</option>
+              <option value="O" {% if shift_data[date.iso].status == "O" %}selected{% endif %}>○</option>
               <option value="time" {% if shift_data[date.iso].status == "time" %}selected{% endif %}>時間指定</option>
             </select><br>
 

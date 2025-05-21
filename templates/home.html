@@ -6,23 +6,26 @@
   {% if user_logged_in %}
   <div class="calendar-container">
     <h2>シフト</h2>
-    <div class="select-year-month">
-      <form method="get">
+    <div class="select-year-month" style="display: flex; justify-content: flex-start; align-items: center; gap: 0.5em; margin-bottom: 1em;">
+      <form method="get" action="/shift_request/overview" style="display: flex; align-items: center; gap: 0.5em; margin: 0;">
         <select name="year">
           {% for y in years %}
             <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
           {% endfor %}
-        </select> 年
-  
+        </select>
+        年
+    
         <select name="month">
           {% for m in months %}
             <option value="{{ m }}" {% if m == selected_month %}selected{% endif %}>{{ m }}</option>
           {% endfor %}
-        </select> 月
-  
+        </select>
+        月
+    
         <button type="submit">表示</button>
       </form>
     </div>
+    
   
     <div class="scrollable-table-wrapper">
       <table class="calendar-table">

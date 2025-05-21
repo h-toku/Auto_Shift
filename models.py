@@ -85,7 +85,7 @@ class ShiftRequest(Base):
     day = Column(Integer, nullable=False)
 
     status = Column(
-        Enum("×", "○", "time", name="status_enum"),
+        Enum("X", "O", "time", name="status_enum"),
         nullable=True
     )
     start_time = Column(Integer, nullable=True)
@@ -99,7 +99,7 @@ class ShiftRequest(Base):
             return value  # 店舗が取得できない場合はバリデーションをスキップ
 
         store = self.staff.store
-        if self.status == "○":
+        if self.status == "O":
             if key == "start_time":
                 return store.open_hours
             if key == "end_time":

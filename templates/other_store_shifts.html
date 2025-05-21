@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block header_title %}他店舗シフト{% endblock %}
+
+{% block content %}
+<body>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+    <form method="get" action="/shift/other_store" style="display: flex; align-items: center; gap: 0.5em;">
+      <select name="store_id">
+        {% for s in stores %}
+        <option value="{{ s.id }}" {% if s.id == selected_store %}selected{% endif %}>{{ s.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="year">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>年
+      <select name="month">
+        {% for m in months %}
+        <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ m }}</option>
+        {% endfor %}
+      </select>月
+      <button type="submit">表示</button>
+    </form>
+  </div>
+
+  <div class="scrollable-table-wrapper">
+    <table class="calendar-table">
+      <thead>
+        <tr>
+          <th class="sticky-col sticky-header">日付</th>
+          <th class="sticky-col sticky-header">内容</th>
+          {% for staff in staffs %}
+          <th class="sticky-header" style="color: {{ staff.color }};">{{ staff.name }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for day in days_in_month %}
+        <tr>
+          <td class="sticky-col {{ day.style_class }}">
+            {{ day.day }}<br><span style="font-size: 0.7em;">{{ day.weekday }}</span>
+          </td>
+          <td class="sticky-col {{ day.style_class }}">
+            希望シフト:
+            <br>
+            仮シフト:
+          </td>
+          {% for staff in staffs %}
+          <td class="{{ day.style_class }}">
+            <!-- 希望シフト -->
+            <div>
+              {% set req = shift_requests.get(staff.id, {}).get(day.day) %}
+              {% if req %}
+                {% if req.status == "time" %}
+                  {{ req.start_time }}〜{{ req.end_time }}
+                {% else %}
+                  {{ req.status }}
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </div>
+            <br>
+            <!-- 仮シフト -->
+            <div>
+              {% set shifts = staff_shifts.get(staff.id, {}).get(day.day, []) %}
+              {% if shifts %}
+                {{ shifts | join(", ") }}時
+              {% else %}
+                -
+              {% endif %}
+            </div>
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+{% endblock %}

@@ -22,18 +22,20 @@
       </form>
   
       <div style="display: flex; justify-content: flex-end; gap: 0.5em; margin-bottom: 1em;">
-        <form method="post" action="/shift_request/overview/save">
+        <form method="post" action="/shift/temp_result/save">
           <input type="hidden" name="year" value="{{ year }}">
           <input type="hidden" name="month" value="{{ month }}">
           <input type="hidden" name="store_id" value="{{ store_id }}">
-          <button type="submit" class="btn btn-primary">保存</button>
+          <button type="submit" class="btn btn-primary">一時保存</button>
         </form>
-        <form method="post" action="/generate-shift">
+        <form method="post" action="/publish-shift">
           <input type="hidden" name="year" value="{{ year }}">
           <input type="hidden" name="month" value="{{ month }}">
           <input type="hidden" name="store_id" value="{{ store_id }}">
-          <button type="submit" class="btn btn-primary">シフト作成</button>
+          <button type="submit" class="btn btn-primary">シフト公開</button>
         </form>
+      </div>
+    </div>
 
       <div class="scrollable-table-wrapper">
         <table class="calendar-table">
@@ -71,8 +73,8 @@
                 {% set result = staff_shifts.get(staff.id, {}).get(day.day) %}
                 <select name="result_status[{{ staff.id }}][{{ day.day }}]" class="result-status-select" data-staff="{{ staff.id }}" data-day="{{ day.day }}">
                   <option value="" {% if not result or not result.status %}selected{% endif %}>--</option>
-                  <option value="×" {% if result and result.status == "×" %}selected{% endif %}>×</option>
-                  <option value="○" {% if result and result.status == "○" %}selected{% endif %}>○</option>
+                  <option value="X" {% if result and result.status == "X" %}selected{% endif %}>X</option>
+                  <option value="O" {% if result and result.status == "O" %}selected{% endif %}>O</option>
                   <option value="time" {% if result and result.status == "time" %}selected{% endif %}>time</option>
                 </select><br>
     

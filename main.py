@@ -400,7 +400,7 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
                 iso_date = key.replace("status_", "")
                 year, month, day = map(int, iso_date.split("-"))
 
-                status = value if value in ["×", "○", "time"] else None
+                status = value if value in ["X", "O", "time"] else None
                 start = form_data.get(f"start_{iso_date}")
                 end = form_data.get(f"end_{iso_date}")
 
@@ -481,15 +481,20 @@ async def shift_request_overview(
     for r in shift_requests:
         if r.status is None:
             continue
+
         if r.status == "time":
             start_str = r.start_time
             end_str = "L" if r.end_time == store.close_hours else r.end_time
             display = f"{start_str}〜{end_str}"
         else:
-            display = r.status  # "×" など
+            display = r.status  # "〇", "×", etc.
+
         staff_shifts[r.staff_id][r.day] = {
-            "status": display
-        }
+            "status": r.status,         # 実際のvalue ("〇", "×", "time" など)
+            "display": display,
+            "start_time": r.start_time,
+            "end_time": r.end_time
+            }
 
     # カレンダー日付生成（縦軸）
     first_day = date(year, month, 1)
@@ -683,7 +688,7 @@ def generate_shift(
     month: int = Form(...),
     db: Session = Depends(get_db),
 ):
-    
+
     context = get_common_context(request)
 
     try:
@@ -819,7 +824,7 @@ async def shift_temp_result(
 
     return templates.TemplateResponse("shift_temp_result.html", context)
 
-@app.post("/shift_temp_result/save")
+@app.post("/shift/temp_result/save")
 async def save_shift_temp_result(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
     action = form.get("action")  # "save" または "publish"
@@ -879,3 +884,119 @@ async def save_shift_temp_result(request: Request, db: Session = Depends(get_db)
     return RedirectResponse(url=f"/shift/temp_result?year={year}&month={month}", status_code=303)
 
 
+@app.get("/shift/other_store")
+async def shift_other_store(
+    request: Request,
+    db: Session = Depends(get_db),
+    year: int = None,
+    month: int = None,
+    store_id: int = None
+):
+    current_staff = get_current_staff(request, db)
+    if current_staff is None or current_staff.employment_type != "社員":
+        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
+
+    today = date.today()
+    if not year or not month:
+        year, month = today.year, today.month + 1
+        if month == 13:
+            year += 1
+            month = 1
+
+    # 全店舗一覧（自店舗を除外）
+    stores = db.query(Store).all()
+    other_stores = [s for s in stores if s.id != current_staff.store_id]
+
+    # 指定がなければ先頭の店舗を選択
+    selected_store = None
+    if store_id:
+        selected_store = db.query(Store).filter(Store.id == store_id).first()
+    elif other_stores:
+        selected_store = other_stores[0]
+
+    if not selected_store:
+        raise HTTPException(status_code=404, detail="表示可能な他店舗が存在しません")
+
+    # 該当店舗のスタッフ取得
+    staff_list = db.query(Staff).filter(Staff.store_id == selected_store.id).all()
+    staff_map = {s.id: s.name for s in staff_list}
+    staff_ids = list(staff_map.keys())
+
+    def generate_time_options(open_time, close_time):
+        return [hour for hour in range(open_time, close_time + 1)]
+
+    # 仮シフトの取得
+    shift_results = db.query(Shiftresult).filter(
+        Shiftresult.year == year,
+        Shiftresult.month == month,
+        Shiftresult.staff_id.in_(staff_ids)
+    ).all()
+
+    staff_shifts = {s.id: {} for s in staff_list}
+    for r in shift_results:
+        start_str = r.start_time
+        end_str = "L" if r.end_time == selected_store.close_hours else r.end_time
+        display = f"{start_str}〜{end_str}"
+        staff_shifts[r.staff_id][r.day] = {
+            "status": display
+        }
+
+    # 希望シフトの取得
+    shift_requests = db.query(ShiftRequest).filter(
+        ShiftRequest.year == year,
+        ShiftRequest.month == month,
+        ShiftRequest.staff_id.in_(staff_ids)
+    ).all()
+
+    staff_requests = {s.id: {} for s in staff_list}
+    for r in shift_requests:
+        if r.status == "time":
+            start_str = r.start_time
+            end_str = "L" if r.end_time == r.staff.store.close_hours else r.end_time
+            display = f"{start_str}〜{end_str}"
+        else:
+            display = r.status or "-"
+        staff_requests[r.staff_id][r.day] = {
+            "status": display
+        }
+
+    # カレンダー日付生成
+    first_day = date(year, month, 1)
+    days_in_month = []
+    d = first_day
+    while d.month == month:
+        weekday = d.weekday()
+        style_class = ""
+        if weekday == 5:
+            style_class = "saturday"
+        elif weekday == 6 or jpholiday.is_holiday(d):
+            style_class = "sunday"
+        days_in_month.append({
+            "day": d.day,
+            "weekday": ["月", "火", "水", "木", "金", "土", "日"][weekday],
+            "style_class": style_class
+        })
+        d += timedelta(days=1)
+
+    # 年月の選択肢
+    current_year = today.year
+    years = [current_year - 1, current_year, current_year + 1]
+    months = list(range(1, 13))
+
+    context = get_common_context(request)
+    context.update({
+        "request": request,
+        "days_in_month": days_in_month,
+        "years": years,
+        "months": months,
+        "year": year,
+        "month": month,
+        "stores": other_stores,
+        "selected_store": selected_store.id,
+        "staffs": staff_list,
+        "shift_requests": staff_requests,
+        "staff_shifts": staff_shifts,
+        "time_options": generate_time_options(selected_store.open_hours, selected_store.close_hours)
+    })
+
+    return templates.TemplateResponse("other_store_shifts.html", context)

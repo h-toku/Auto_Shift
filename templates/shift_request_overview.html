@@ -4,9 +4,9 @@
 
 {% block content %}
 <body>
-  <div class="select-year-month" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
-  
-    <!-- 表示フォーム（左寄せ） -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1em;">
+
+    <!-- 左側：年・月・表示ボタン -->
     <form method="get" action="/shift_request/overview" style="display: flex; align-items: center; gap: 0.5em;">
       <select name="year">
         {% for y in years %}
@@ -21,15 +21,15 @@
       <button type="submit">表示</button>
     </form>
   
-    <!-- 保存フォーム（右寄せ、見た目だけ） -->
-    <div style="display: flex; justify-content: flex-end; gap: 0.5em; margin-bottom: 1em;">
-      <form method="post" action="/shift_request/overview/save">
+    <!-- 右側：保存・シフト作成ボタン -->
+    <div style="display: flex; align-items: center; gap: 0.5em;">
+      <form method="post" action="/shift_request/overview/save" style="margin: 0;">
         <input type="hidden" name="year" value="{{ selected_year }}">
         <input type="hidden" name="month" value="{{ selected_month }}">
         <input type="hidden" name="store_id" value="{{ store_id }}">
         <button type="submit" class="btn btn-primary">保存</button>
       </form>
-      <form method="post" action="/generate-shift">
+      <form method="post" action="/generate-shift" style="margin: 0;">
         <input type="hidden" name="year" value="{{ selected_year }}">
         <input type="hidden" name="month" value="{{ selected_month }}">
         <input type="hidden" name="store_id" value="{{ store_id }}">
@@ -60,8 +60,8 @@
                 {% set shift = staff_shifts.get(staff.id, {}).get(day.day) %}
                 <select name="shift_status[{{ staff.id }}][{{ day.day }}]" class="status-select" data-staff="{{ staff.id }}" data-day="{{ day.day }}">
                   <option value="" {% if not shift or not shift.status %}selected{% endif %}>--</option>
-                  <option value="×" {% if shift and shift.status == "×" %}selected{% endif %}>×</option>
-                  <option value="○" {% if shift and shift.status == "○" %}selected{% endif %}>○</option>
+                  <option value="X" {% if shift and shift.status == "X" %}selected{% endif %}>X</option>
+                  <option value="O" {% if shift and shift.status == "O" %}selected{% endif %}>O</option>
                   <option value="time" {% if shift and shift.status == "time" %}selected{% endif %}>time</option>
                 </select><br>
       
