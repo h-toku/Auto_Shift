@@ -14,7 +14,7 @@ from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
 import re
-from shift_creator import generate_shift_results_with_pulp
+from shift_creator import generate_shift_results_with_ortools
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -616,7 +616,7 @@ async def save_or_generate_shift_request(
         context = get_common_context(request)
 
         try:
-            success = generate_shift_results_with_pulp(store_id, year, month, db)
+            success = generate_shift_results_with_ortools(db, store_id, year, month)
             if success:
                 message = f"{year}年{month}月のシフトを生成しました。"
             else:
@@ -633,6 +633,7 @@ async def save_or_generate_shift_request(
                 "request": request,
                 "message": f"エラーが発生しました: {str(e)}"
             })
+            print(e)
             return templates.TemplateResponse("generated.html", context)
 
     else:
@@ -662,6 +663,7 @@ async def default_skill_settings(request: Request, db: Session = Depends(get_db)
         "settings": settings,
         "shift_patterns": shift_patterns,
         "message": message,
+        "time_options": generate_time_options(store.open_hours, store.close_hours),
     })
 
     return templates.TemplateResponse("store_default_settings.html", context)
@@ -793,10 +795,9 @@ async def shift_temp_result(
     staff_shifts = {staff.id: {} for staff in staff_list}
     for r in shift_results:
         # end_timeが閉店時間なら"L"に置き換え
-        end_display = "L" if r.end_time == store.close_hours else r.end_time
         staff_shifts[r.staff_id][r.day] = {
             "start_time": r.start_time,
-            "end_time": end_display
+            "end_time": r.end_time
         }
 
     # カレンダー日付生成

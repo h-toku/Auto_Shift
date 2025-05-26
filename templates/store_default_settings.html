@@ -72,8 +72,25 @@
     {% for pattern in shift_patterns %}
     <tr>
       <td><input type="text" name="name_{{ pattern.id }}" value="{{ pattern.name }}"></td>
-      <td><input type="number" name="start_{{ pattern.id }}" value="{{ pattern.start_time }}" min="0" max="23"></td>
-      <td><input type="number" name="end_{{ pattern.id }}" value="{{ pattern.end_time }}" min="1" max="24"></td>
+      <td>
+          <select name="start_{{ pattern.id }}"
+               value="{{ pattern.start_time }}"
+               min="{{ store.open_hours }}" max="{{ store.close_hours - 1 }}">
+          {% for t in time_options %}
+            <option value="{{ t }}" {% if pattern.start_time == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td>
+        <select type="number" name="end_{{ pattern.id }}"
+               value="{{ pattern.end_time }}"
+               min="{{ store.open_hours + 1 }}" max="{{ store.close_hours }}">
+          {% for t in time_options %}
+            <option value="{{ t }}" {% if pattern.end_time == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      
       <td><input type="checkbox" name="fulltime_{{ pattern.id }}" {% if pattern.is_fulltime %}checked{% endif %}></td>
       <td><input type="checkbox" name="delete_{{ pattern.id }}"></td>
     </tr>
