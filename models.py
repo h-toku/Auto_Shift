@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, Enum, CheckConstraint, Time, Boolean, Date, DateTime, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import validates
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -47,6 +48,15 @@ class Staff(Base):
         CheckConstraint('leadership BETWEEN 0 AND 5', name='check_leadership'),
         CheckConstraint('hall BETWEEN 0 AND 5', name='check_hall')
     )
+
+    # StaffRejectionHistoryモデルにリレーションを追加
+    rejection_history = relationship("StaffRejectionHistory", back_populates="staff")
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return f"<Staff id={self.id} name={self.name}>"
 
 class Shift(Base):
     __tablename__ = 'shifts'
@@ -158,3 +168,22 @@ class ShiftPattern(Base):
     default = Column(Boolean, default=False)
 
     store = relationship("Store", back_populates="shift_patterns")
+
+class StaffRejectionHistory(Base):
+    """スタッフのシフト希望不採用履歴"""
+    __tablename__ = "staff_rejection_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    staff_id = Column(Integer, ForeignKey("staffs.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    total_requests = Column(Integer, default=1)  # その日の希望数
+    rejected_count = Column(Integer, default=1)  # 不採用数
+    created_at = Column(DateTime, default=datetime.now)
+
+    # リレーション
+    staff = relationship("Staff", back_populates="rejection_history")
+
+    # インデックス
+    __table_args__ = (
+        Index("ix_staff_rejection_history_staff_date", "staff_id", "date"),
+    )

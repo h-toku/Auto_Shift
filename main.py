@@ -9,7 +9,7 @@ from datetime import date
 import dotenv
 import jpholiday
 from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement, ShiftPattern
+from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement, ShiftPattern, StaffRejectionHistory
 from database import SessionLocal, engine
 from utils import get_common_context
 from datetime import datetime, timedelta, date, time
@@ -631,7 +631,7 @@ async def save_or_generate_shift_request(
         except Exception as e:
             context.update({
                 "request": request,
-                "message": f"エラーが発生しました: {str(e)}"
+                "message": f"エラーが発生しました: {repr(e)}"
             })
             print(e)
             return templates.TemplateResponse("generated.html", context)
@@ -876,8 +876,18 @@ async def save_shift_temp_result(
         pattern_start = re.compile(r"result_start\[(\d+)\]\[(\d+)\]")
         pattern_end = re.compile(r"result_end\[(\d+)\]\[(\d+)\]")
 
-        result_data = {}
+        # 既存のシフト結果を取得（削除されたシフトを特定するため）
+        existing_results = db.query(Shiftresult).filter(
+            Shiftresult.year == year,
+            Shiftresult.month == month,
+            Shiftresult.store_id == store_id
+        ).all()
+        existing_shifts = {
+            (r.staff_id, r.day, r.start_time, r.end_time): r
+            for r in existing_results
+        }
 
+        result_data = {}
         for key, value in form.items():
             for pattern, field in [
                 (pattern_start, "start_time"),
@@ -889,14 +899,39 @@ async def save_shift_temp_result(
                     day = int(m.group(2))
                     result_data.setdefault(staff_id, {}).setdefault(day, {})[field] = value.strip()
 
+        # 削除されたシフトを特定し、不採用履歴を記録
+        for (staff_id, day, start_time, end_time), result in existing_shifts.items():
+            if staff_id not in result_data or day not in result_data[staff_id]:
+                # シフトが削除された場合
+                rejection = StaffRejectionHistory(
+                    staff_id=staff_id,
+                    date=datetime(year, month, day).date(),
+                    total_requests=1,
+                    rejected_count=1
+                )
+                db.add(rejection)
+                db.delete(result)
+
+        # 新しいシフトを保存
         for staff_id, days in result_data.items():
             for day, data in days.items():
+                start_time = data.get("start_time")
+                end_time = data.get("end_time")
+                
+                if not start_time or not end_time:
+                    continue
+
                 existing = db.query(Shiftresult).filter_by(
-                    staff_id=staff_id, store_id=store_id, year=year, month=month, day=day
+                    staff_id=staff_id,
+                    store_id=store_id,
+                    year=year,
+                    month=month,
+                    day=day
                 ).first()
+
                 if existing:
-                    existing.start_time = data.get("start_time") or None
-                    existing.end_time = data.get("end_time") or None
+                    existing.start_time = start_time
+                    existing.end_time = end_time
                 else:
                     new_record = Shiftresult(
                         staff_id=staff_id,
@@ -904,10 +939,11 @@ async def save_shift_temp_result(
                         year=year,
                         month=month,
                         day=day,
-                        start_time=data.get("start_time") or None,
-                        end_time=data.get("end_time") or None,
+                        start_time=start_time,
+                        end_time=end_time
                     )
                     db.add(new_record)
+
         db.commit()
 
         params = {
@@ -920,13 +956,12 @@ async def save_shift_temp_result(
         return RedirectResponse(url=redirect_url, status_code=303)
 
     elif action == "publish":
-        # 仮保存されたシフト（Shiftresult）を本保存用テーブル（Shift）へコピー
+        # 既存の実装を維持
         shift_results = db.query(Shiftresult).filter_by(
             year=year, month=month, store_id=store_id
         ).all()
 
         for result in shift_results:
-            # 既存のシフトがあれば更新、なければ新規作成
             existing_shift = db.query(Shift).filter_by(
                 staff_id=result.staff_id,
                 store_id=store_id,
@@ -946,7 +981,7 @@ async def save_shift_temp_result(
                     month=month,
                     day=result.day,
                     start_time=result.start_time,
-                    end_time=result.end_time,
+                    end_time=result.end_time
                 )
                 db.add(new_shift)
 
@@ -954,7 +989,7 @@ async def save_shift_temp_result(
 
         context = get_common_context(request)
         context.update({
-            "message": f"{year}年{month}月のシフトを公開しました。",
+            "message": f"{year}年{month}月のシフトを公開しました。"
         })
         return templates.TemplateResponse("published.html", context)
 
@@ -1075,3 +1110,65 @@ async def shift_other_store(
     })
 
     return templates.TemplateResponse("other_store_shifts.html", context)
+
+@app.post("/api/shift/edit")
+async def edit_shift(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    data = await request.json()
+    staff_id = data.get("staff_id")
+    year = data.get("year")
+    month = data.get("month")
+    day = data.get("day")
+    start_time = data.get("start_time")
+    end_time = data.get("end_time")
+    action = data.get("action")  # "add" or "delete"
+
+    # 既存のシフト結果を取得
+    shift_result = db.query(Shiftresult).filter(
+        Shiftresult.staff_id == staff_id,
+        Shiftresult.year == year,
+        Shiftresult.month == month,
+        Shiftresult.day == day,
+        Shiftresult.start_time == start_time,
+        Shiftresult.end_time == end_time
+    ).first()
+
+    if action == "delete" and shift_result:
+        # シフトが削除された場合、不採用履歴を記録
+        rejection = StaffRejectionHistory(
+            staff_id=staff_id,
+            date=datetime(year, month, day).date(),
+            total_requests=1,
+            rejected_count=1
+        )
+        db.add(rejection)
+        
+        # シフト結果を削除
+        db.delete(shift_result)
+    
+    elif action == "add":
+        # 新規シフトを追加
+        new_shift = Shift(
+            staff_id=staff_id,
+            date=day,
+            start_time=start_time,
+            end_time=end_time
+        )
+        db.add(new_shift)
+        db.flush()  # IDを取得するためにflush
+
+        new_result = Shiftresult(
+            staff_id=staff_id,
+            year=year,
+            month=month,
+            day=day,
+            start_time=start_time,
+            end_time=end_time,
+            shift_id=new_shift.id
+        )
+        db.add(new_result)
+
+    db.commit()
+    return {"status": "ok"}

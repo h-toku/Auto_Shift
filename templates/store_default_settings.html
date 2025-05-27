@@ -73,18 +73,14 @@
     <tr>
       <td><input type="text" name="name_{{ pattern.id }}" value="{{ pattern.name }}"></td>
       <td>
-          <select name="start_{{ pattern.id }}"
-               value="{{ pattern.start_time }}"
-               min="{{ store.open_hours }}" max="{{ store.close_hours - 1 }}">
+          <select name="start_{{ pattern.id }}">
           {% for t in time_options %}
             <option value="{{ t }}" {% if pattern.start_time == t %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
         </select>
       </td>
       <td>
-        <select type="number" name="end_{{ pattern.id }}"
-               value="{{ pattern.end_time }}"
-               min="{{ store.open_hours + 1 }}" max="{{ store.close_hours }}">
+        <select type="number" name="end_{{ pattern.id }}">
           {% for t in time_options %}
             <option value="{{ t }}" {% if pattern.end_time == t %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
@@ -98,8 +94,16 @@
     <!-- 新規追加行 -->
     <tr>
       <td><input type="text" name="name_new"></td>
-      <td><input type="number" name="start_new" min="0" max="23"></td>
-      <td><input type="number" name="end_new" min="1" max="24"></td>
+      <td><select name="start_new">
+        {% for t in time_options %}
+          <option value="{{ t }}">{{ t }}</option>
+        {% endfor %}
+      </select></td>
+      <td><select type="number" name="end_new">
+          {% for t in time_options %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select></td>
       <td><input type="checkbox" name="fulltime_new"></td>
       <td>-</td>
     </tr>
