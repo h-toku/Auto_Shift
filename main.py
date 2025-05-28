@@ -1,21 +1,27 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, status, Form, Query
+from fastapi import (
+    FastAPI, HTTPException, Depends, Request, status,
+    Form, Query
+)
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy.orm import Session
 from calendar import monthrange
-from datetime import date
+from datetime import datetime, timedelta, date
 import dotenv
 import jpholiday
-from pydantic_models import Staff, ShiftRequest, StaffOut
-from models import Store, Staff, ShiftRequest, Shift, Shiftresult, Shift, StoreDefaultSkillRequirement, ShiftPattern, StaffRejectionHistory
+from pydantic_models import StaffOut
+from models import (
+    Store, Staff, ShiftRequest, Shift, Shiftresult,
+    StoreDefaultSkillRequirement, ShiftPattern,
+    StaffRejectionHistory
+)
 from database import SessionLocal, engine
 from utils import get_common_context
-from datetime import datetime, timedelta, date, time
 import re
-from shift_creator import generate_shift_results_with_ortools
-from typing import Optional
+from shift.shift_generator import generate_shift_results_with_ortools
+from typing import Optional, Dict
 from urllib.parse import urlencode
 
 
@@ -30,12 +36,14 @@ app.add_middleware(SessionMiddleware, secret_key="secret-key")
 Store.metadata.create_all(bind=engine)
 Staff.metadata.create_all(bind=engine)
 
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
 
 def get_current_staff(request: Request, db: Session = Depends(get_db)):
     user_name = request.session.get("user_name")
@@ -52,19 +60,20 @@ def get_current_staff(request: Request, db: Session = Depends(get_db)):
         )
     return staff
 
+
 def generate_time_options(open_time, close_time):
     options = []
-
     for hour in range(open_time, close_time + 1):
-            options.append(hour)
-
+        options.append(hour)
     return options
+
 
 @app.get("/login")
 async def login_page(request: Request):
     context = get_common_context(request)
     context["request"] = request
     return templates.TemplateResponse("login.html", context)
+
 
 @app.post("/login")
 async def login(request: Request, db: Session = Depends(get_db)):
@@ -74,7 +83,10 @@ async def login(request: Request, db: Session = Depends(get_db)):
 
     user = db.query(Staff).filter(Staff.login_code == login_code).first()
     if user is None or password != user.password:
-        raise HTTPException(status_code=401, detail="Invalid login or password")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid login or password"
+        )
 
     request.session['user_logged_in'] = True
     request.session['user_name'] = user.name
@@ -83,9 +95,14 @@ async def login(request: Request, db: Session = Depends(get_db)):
     request.session['staff_id'] = user.id
     request.session['store_id'] = user.store_id
 
-    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(
+        url="/",
+        status_code=status.HTTP_303_SEE_OTHER
+    )
+
 
 @app.get("/", response_class=HTMLResponse)
+@app.get("/home", response_class=HTMLResponse)
 async def home(
     request: Request,
     db: Session = Depends(get_db),
@@ -122,9 +139,13 @@ async def home(
     staff_info = []
     user_name = request.session.get("user_name")
     if request.session.get("user_logged_in"):
-        current_staff = db.query(Staff).filter(Staff.name == user_name).first()
+        current_staff = db.query(Staff).filter(
+            Staff.name == user_name
+        ).first()
         if current_staff:
-            staffs = db.query(Staff).filter(Staff.store_id == current_staff.store_id).all()
+            staffs = db.query(Staff).filter(
+                Staff.store_id == current_staff.store_id
+            ).all()
 
         for person in staffs:
             color = 'black'
@@ -132,19 +153,52 @@ async def home(
                 color = 'blue'
             elif person.gender == '女':
                 color = 'red'
-            staff_info.append({'name': person.name, 'color': color})
+            staff_info.append({
+                'name': person.name,
+                'color': color
+            })
 
     # シフト情報をスタッフごとに整理
     staff_shifts = {}
     for person in staffs:
-        staff_shifts[person.id] = {day["day"]: None for day in days_in_month}
+        staff_shifts[person.id] = {
+            day["day"]: None for day in days_in_month
+        }
 
-    shifts = db.query(Shift).filter(Shift.date >= date(year, month, 1), Shift.date <= date(year, month, last_day)).all()
+    # 現在の店舗のスタッフIDリストを取得
+    staff_ids = [staff.id for staff in staffs]
+    
+    # 店舗の営業時間を取得
+    store = staffs[0].store if staffs else None
+    if store:
+        open_hours = store.open_hours
+        close_hours = store.close_hours
+    
+    # シフト情報を取得（store_id、year、monthでフィルタリング）
+    shifts = db.query(Shift).filter(
+        Shift.staff_id.in_(staff_ids),
+        Shift.year == year,
+        Shift.month == month
+    ).all()
 
     for shift in shifts:
-        staff_shifts[shift.staff_id][shift.date.day] = {
-            "start": shift.start_time,
-            "end": shift.end_time
+        start_time = shift.start_time
+        end_time = shift.end_time
+        
+        # 表示形式の決定
+        if start_time == open_hours and end_time == close_hours:
+            display = "O"
+        elif end_time == close_hours:
+            display = f"{start_time} ～ L"
+        else:
+            display = (
+                f"{start_time} 〜 {end_time}"
+            )
+            
+        staff_shifts[shift.staff_id][shift.date] = {
+            "display": display,
+            "start": start_time,
+            "end": end_time
         }
 
     # コンテキストにシフト情報を追加
@@ -166,23 +220,43 @@ async def home(
 
 @app.post("/logout")
 async def logout(request: Request):
-    for key in ["user_logged_in", "user_name", "store_name", "employment_type", "staff_id"]:
+    keys_to_remove = [
+        "user_logged_in",
+        "user_name",
+        "store_name",
+        "employment_type",
+        "staff_id"
+    ]
+    for key in keys_to_remove:
         request.session.pop(key, None)
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    return RedirectResponse(
+        url="/login",
+        status_code=status.HTTP_302_FOUND
+    )
 
 @app.get("/salary_estimate")
-async def salary_estimate(request: Request, db: Session = Depends(get_db)):
-    current_staff = get_current_staff(request, db)
+async def salary_estimate(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    # アクセス制御のためcurrent_staffは必要
+    _ = get_current_staff(request, db)
 
     context = get_common_context(request)
     context.update({"request": request})
     return templates.TemplateResponse("salary_estimate.html", context)
 
 @app.get("/staff/register")
-async def get_register_form(request: Request, db: Session = Depends(get_db)):
+async def get_register_form(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     current_staff = get_current_staff(request, db)
     if current_staff is None or current_staff.employment_type != "社員":
-        raise HTTPException(status_code=403, detail="社員のみアクセスできます。")
+        raise HTTPException(
+            status_code=403,
+            detail="社員のみアクセスできます。"
+        )
 
     context = get_common_context(request)
     context.update({"request": request})
@@ -228,14 +302,25 @@ async def register_staff(
     return RedirectResponse(url="/", status_code=303)
 
 @app.get("/staff/manage")
-async def staff_manage(request: Request, db: Session = Depends(get_db), user=Depends(get_current_staff), message: Optional[str] = None):
+async def staff_manage(
+    request: Request,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_staff),
+    message: Optional[str] = None
+):
     if user is None or user.employment_type != "社員":
         return RedirectResponse(url="/", status_code=303)
 
-    staffs = db.query(Staff).filter(Staff.store_id == user.store_id).all()
+    staffs = db.query(Staff).filter(
+        Staff.store_id == user.store_id
+    ).all()
     staff_outs = [StaffOut.from_orm(staff) for staff in staffs]
     context = get_common_context(request)
-    context.update({"request": request, "staffs": staff_outs, "message": message})
+    context.update({
+        "request": request,
+        "staffs": staff_outs,
+        "message": message
+    })
     return templates.TemplateResponse("staff_manage.html", context)
 
 @app.get("/staff/delete/{staff_id}")
@@ -385,32 +470,94 @@ async def submit_shift_request(
     if not staff_id:
         return RedirectResponse(url="/login", status_code=303)
 
-    db.query(ShiftRequest).filter_by(staff_id=staff_id, year=year, month=month).delete()
+    # スタッフの店舗IDを取得
+    staff = db.query(Staff).filter(Staff.id == staff_id).first()
+    if not staff:
+        raise HTTPException(status_code=404, detail="スタッフが見つかりません")
+    store_id = staff.store_id
 
+    # 店舗のスタッフIDのみを対象に削除（store_id、year、monthでフィルタリング）
+    store_staff_ids = [s.id for s in db.query(Staff).filter(Staff.store_id == store_id).all()]
+    db.query(ShiftRequest).filter(
+        ShiftRequest.staff_id.in_(store_staff_ids),
+        ShiftRequest.year == year,
+        ShiftRequest.month == month
+    ).delete(synchronize_session=False)
+    db.flush()
+
+    # 新しいシフト希望を追加
     for day in days:
-        new_request = ShiftRequest(staff_id=staff_id, year=year, month=month, day=day)
+        new_request = ShiftRequest(
+            staff_id=staff_id,
+            year=year,
+            month=month,
+            day=day
+        )
         db.add(new_request)
 
-    db.commit()
-    return RedirectResponse(url="/", status_code=303)
+    try:
+        db.commit()
+        return RedirectResponse(url="/", status_code=303)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"シフト希望の保存に失敗しました: {str(e)}")
 
 @app.post("/shift_request/update")
-async def update_shift_request(request: Request, db: Session = Depends(get_db)):
+async def update_shift_request(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    context = get_common_context(request)
     try:
         form_data = await request.form()
         staff_id = request.session.get("staff_id")
 
         if not staff_id:
-            raise ValueError("ログイン情報がありません。")
+            raise HTTPException(
+                status_code=401,
+                detail="ログイン情報がありません。"
+            )
 
         staff = db.query(Staff).filter_by(id=staff_id).first()
         if not staff or not staff.store:
-            raise ValueError("店舗情報が設定されていません。")
+            raise HTTPException(
+                status_code=404,
+                detail="店舗情報が設定されていません。"
+            )
 
+        store_id = staff.store_id
+        year = int(form_data.get("year"))
+        month = int(form_data.get("month"))
+
+        if not year or not month:
+            raise HTTPException(
+                status_code=400,
+                detail="年月が指定されていません。"
+            )
+
+        # 店舗のスタッフIDのみを対象に処理
+        store_staff_ids = [
+            s.id for s in db.query(Staff).filter(
+                Staff.store_id == store_id
+            ).all()
+        ]
+
+        # 既存のシフト希望を削除
+        db.query(ShiftRequest).filter(
+            ShiftRequest.staff_id.in_(store_staff_ids),
+            ShiftRequest.year == year,
+            ShiftRequest.month == month
+        ).delete(synchronize_session=False)
+        db.flush()
+
+        # 新しいシフト希望を追加
         for key, value in form_data.items():
             if key.startswith("status_"):
                 iso_date = key.replace("status_", "")
-                year, month, day = map(int, iso_date.split("-"))
+                try:
+                    year, month, day = map(int, iso_date.split("-"))
+                except ValueError:
+                    continue
 
                 status = value if value in ["X", "O", "time"] else None
                 start = form_data.get(f"start_{iso_date}")
@@ -419,29 +566,37 @@ async def update_shift_request(request: Request, db: Session = Depends(get_db)):
                 start_time = int(start) if start else None
                 end_time = int(end) if end else None
 
-                shift_request = (
-                    db.query(ShiftRequest)
-                    .filter_by(staff_id=staff_id, year=year, month=month, day=day)
-                    .first()
-                )
-                if not shift_request:
+                if staff_id in store_staff_ids:
                     shift_request = ShiftRequest(
-                        staff_id=staff_id, year=year, month=month, day=day
+                        staff_id=staff_id,
+                        year=year,
+                        month=month,
+                        day=day,
+                        status=status,
+                        start_time=start_time,
+                        end_time=end_time
                     )
                     db.add(shift_request)
-
-                shift_request.status = status
-                shift_request.start_time = start_time
-                shift_request.end_time = end_time
         
-        context = get_common_context(request)
-        context.update( {"request": request, "message": "シフト希望が送信されました。"})
-
         db.commit()
-        return templates.TemplateResponse("request_done.html",context)
+        context.update({
+            "request": request,
+            "message": "シフト希望が更新されました。"
+        })
+        return templates.TemplateResponse("request_done.html", context)
 
+    except HTTPException as e:
+        context.update({
+            "request": request,
+            "message": f"エラーが発生しました: {e.detail}"
+        })
+        return templates.TemplateResponse("request_done.html", context)
     except Exception as e:
-        context.update({"message": f"エラーが発生しました: {str(e)}"})
+        db.rollback()
+        context.update({
+            "request": request,
+            "message": f"予期せぬエラーが発生しました: {str(e)}"
+        })
         return templates.TemplateResponse("request_done.html", context)
 
 @app.get("/shift_request/done")
@@ -553,91 +708,200 @@ async def save_or_generate_shift_request(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    form = await request.form()
-    year = int(form.get("year"))
-    month = int(form.get("month"))
-    store_id = int(form.get("store_id"))
-    action = form.get("action")
+    context = get_common_context(request)
+    try:
+        form = await request.form()
+        year = int(form.get("year"))
+        month = int(form.get("month"))
+        store_id = int(form.get("store_id"))
+        action = form.get("action")
 
-    if action == "save":
-        # --- 保存処理 ---
-        pattern_status = re.compile(r"shift_status\[(\d+)\]\[(\d+)\]")
-        pattern_start = re.compile(r"shift_start\[(\d+)\]\[(\d+)\]")
-        pattern_end = re.compile(r"shift_end\[(\d+)\]\[(\d+)\]")
+        if not all([year, month, store_id, action]):
+            raise HTTPException(status_code=400, detail="必要なパラメータが不足しています。")
 
-        result_data = {}
+        # 店舗のスタッフIDのみを対象に処理
+        store_staff_ids = [s.id for s in db.query(Staff).filter(Staff.store_id == store_id).all()]
+        if not store_staff_ids:
+            raise HTTPException(status_code=404, detail="店舗のスタッフが見つかりません。")
 
-        for key, value in form.items():
-            for pattern, field in [
-                (pattern_status, "status"),
-                (pattern_start, "start_time"),
-                (pattern_end, "end_time"),
-            ]:
-                m = pattern.match(key)
-                if m:
-                    staff_id = int(m.group(1))
-                    day = int(m.group(2))
-                    result_data.setdefault(staff_id, {}).setdefault(day, {})[field] = value.strip()
+        if action == "save":
+            try:
+                # 既存のシフト希望を削除（store_id、year、monthでフィルタリング）
+                db.query(ShiftRequest).filter(
+                    ShiftRequest.staff_id.in_(store_staff_ids),
+                    ShiftRequest.year == year,
+                    ShiftRequest.month == month
+                ).delete(synchronize_session=False)
+                db.flush()
 
-        for staff_id, days in result_data.items():
-            for day, data in days.items():
-                existing = db.query(ShiftRequest).filter_by(
-                    staff_id=staff_id, year=year, month=month, day=day
-                ).first()
-                if existing:
-                    existing.status = data.get("status") or None
-                    existing.start_time = data.get("start_time") or None
-                    existing.end_time = data.get("end_time") or None
-                else:
-                    new_record = ShiftRequest(
-                        staff_id=staff_id,
+                pattern_status = re.compile(r"shift_status\[(\d+)\]\[(\d+)\]")
+                pattern_start = re.compile(r"shift_start\[(\d+)\]\[(\d+)\]")
+                pattern_end = re.compile(r"shift_end\[(\d+)\]\[(\d+)\]")
+
+                result_data = {}
+
+                for key, value in form.items():
+                    for pattern, field in [
+                        (pattern_status, "status"),
+                        (pattern_start, "start_time"),
+                        (pattern_end, "end_time"),
+                    ]:
+                        m = pattern.match(key)
+                        if m:
+                            try:
+                                staff_id = int(m.group(1))
+                                day = int(m.group(2))
+                                if staff_id in store_staff_ids:  # 店舗のスタッフのみ処理
+                                    result_data.setdefault(staff_id, {}).setdefault(day, {})[field] = value.strip()
+                            except ValueError:
+                                continue
+
+                # 新しいシフト希望を保存
+                for staff_id, days in result_data.items():
+                    for day, data in days.items():
+                        status = data.get("status")
+                        start_time = int(data.get("start_time")) if data.get("start_time") else None
+                        end_time = int(data.get("end_time")) if data.get("end_time") else None
+
+                        if status in ["X", "O", "time"]:
+                            shift_request = ShiftRequest(
+                                staff_id=staff_id,
+                                year=year,
+                                month=month,
+                                day=day,
+                                status=status,
+                                start_time=start_time,
+                                end_time=end_time
+                            )
+                            db.add(shift_request)
+
+                db.commit()
+                context.update({
+                    "request": request,
+                    "message": "シフト希望が保存されました。"
+                })
+                return templates.TemplateResponse("request_done.html", context)
+
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=f"シフト希望の保存に失敗しました: {str(e)}")
+
+        elif action == "generate":
+            try:
+                # 既存のシフト結果を削除（store_id、year、monthでフィルタリング）
+                db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).delete(synchronize_session=False)
+                db.flush()
+
+                # 既存のシフトを削除（store_id、year、monthでフィルタリング）
+                db.query(Shift).filter(
+                    Shift.year == year,
+                    Shift.month == month,
+                    Shift.staff_id.in_(store_staff_ids)
+                ).delete(synchronize_session=False)
+                db.flush()
+
+                # シフト生成を実行
+                try:
+                    # 必要なデータを取得
+                    store = db.query(Store).filter(Store.id == store_id).first()
+                    if not store:
+                        raise ValueError("店舗情報が見つかりません")
+
+                    # スタッフ情報を取得
+                    staffs = db.query(Staff).filter(
+                        Staff.store_id == store_id
+                    ).all()
+                    employees = [s for s in staffs if s.employment_type == "社員"]
+                    part_timers = [s for s in staffs if s.employment_type != "社員"]
+
+                    # シフト希望を取得
+                    requests = db.query(ShiftRequest).filter(
+                        ShiftRequest.year == year,
+                        ShiftRequest.month == month,
+                        ShiftRequest.staff_id.in_([s.id for s in staffs])
+                    ).all()
+
+                    # 祝日を取得
+                    holidays = set()
+                    for day in range(1, 32):
+                        try:
+                            current_date = date(year, month, day)
+                            if jpholiday.is_holiday(current_date):
+                                holidays.add(current_date)
+                        except ValueError:
+                            continue
+
+                    # シフト生成を実行
+                    new_results = generate_shift_results_with_ortools(
+                        db=db,
+                        store=store,
+                        employees=employees,
+                        staffs=part_timers,
+                        requests=requests,
+                        holidays=holidays,
                         year=year,
-                        month=month,
-                        day=day,
-                        status=data.get("status") or None,
-                        start_time=data.get("start_time") or None,
-                        end_time=data.get("end_time") or None,
+                        month=month
                     )
-                    db.add(new_record)
-        db.commit()
+                    
+                    # シフト結果を保存
+                    for result in new_results:
+                        # 新しいシフトを作成
+                        new_shift = Shift(
+                            staff_id=result.staff_id,
+                            year=year,
+                            month=month,
+                            date=result.day,
+                            start_time=result.start_time,
+                            end_time=result.end_time
+                        )
+                        db.add(new_shift)
+                        db.flush()  # IDを取得するためにflush
 
-        params = {
-        "year": year,
-        "month": month,
-        "store_id": store_id,
-        "message": f"{year}年{month}月のシフト希望を更新しました。"
-    }
+                        # シフト結果を更新
+                        result.shift_id = new_shift.id
+                        db.add(result)
 
-        redirect_url = f"/shift_request/overview?{urlencode(params)}"
-        return RedirectResponse(url=redirect_url, status_code=303)
+                    db.commit()
+                    context.update({
+                        "request": request,
+                        "message": "シフトが生成されました。"
+                    })
+                except ValueError as e:
+                    db.rollback()
+                    context.update({
+                        "request": request,
+                        "message": f"シフトの生成に失敗しました: {str(e)}"
+                    })
+                    print(f"エラーが発生しました: {str(e)}")
+                return templates.TemplateResponse("generated.html", context)
+                
 
-    elif action == "generate":
-        # --- シフト自動生成処理 ---
-        context = get_common_context(request)
+            except Exception as e:
+                db.rollback()
+                print(f"シフトの生成に失敗しました: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"シフトの生成に失敗しました: {str(e)}")
 
-        try:
-            success = generate_shift_results_with_ortools(db, store_id, year, month)
-            if success:
-                message = f"{year}年{month}月のシフトを生成しました。"
-            else:
-                message = "シフト生成に失敗しました。"
+        else:
+            raise HTTPException(status_code=400, detail="無効なアクションです。")
 
-            context.update({
-                "request": request,
-                "message": message
-            })
-            return templates.TemplateResponse("generated.html", context)
-
-        except Exception as e:
-            context.update({
-                "request": request,
-                "message": f"エラーが発生しました: {repr(e)}"
-            })
-            print(e)
-            return templates.TemplateResponse("generated.html", context)
-
-    else:
-        return HTMLResponse(content="不正なアクションです", status_code=400)
+    except HTTPException as e:
+        context.update({
+            "request": request,
+            "message": f"エラーが発生しました: {e.detail}"
+        })
+        print(f"エラーが発生しました: {e.detail}")
+        return templates.TemplateResponse("generated.html", context)
+    except Exception as e:
+        context.update({
+            "request": request,
+            "message": f"予期せぬエラーが発生しました: {str(e)}"
+        })
+        print(f"予期せぬエラーが発生しました: {str(e)}")
+        return templates.TemplateResponse("generated.html", context)
 
 @app.get("/store_settings/default")
 async def default_skill_settings(request: Request, db: Session = Depends(get_db), message: Optional[str] = None):
@@ -866,130 +1130,122 @@ async def save_shift_temp_result(
     request: Request,
     db: Session = Depends(get_db)
 ):
-    form = await request.form()
-    year = int(form.get("year"))
-    month = int(form.get("month"))
-    store_id = int(form.get("store_id"))
-    action = form.get("action")
+    context = get_common_context(request)
+    try:
+        form = await request.form()
+        year = int(form.get("year"))
+        month = int(form.get("month"))
+        store_id = int(form.get("store_id"))
+        action = form.get("action")
 
-    if action == "save":
-        pattern_start = re.compile(r"result_start\[(\d+)\]\[(\d+)\]")
-        pattern_end = re.compile(r"result_end\[(\d+)\]\[(\d+)\]")
+        if not all([year, month, store_id, action]):
+            raise HTTPException(status_code=400, detail="必要なパラメータが不足しています。")
 
-        # 既存のシフト結果を取得（削除されたシフトを特定するため）
-        existing_results = db.query(Shiftresult).filter(
-            Shiftresult.year == year,
-            Shiftresult.month == month,
-            Shiftresult.store_id == store_id
-        ).all()
-        existing_shifts = {
-            (r.staff_id, r.day, r.start_time, r.end_time): r
-            for r in existing_results
-        }
+        # 店舗のスタッフIDのみを対象に処理
+        store_staff_ids = [s.id for s in db.query(Staff).filter(Staff.store_id == store_id).all()]
+        if not store_staff_ids:
+            raise HTTPException(status_code=404, detail="店舗のスタッフが見つかりません。")
 
-        result_data = {}
-        for key, value in form.items():
-            for pattern, field in [
-                (pattern_start, "start_time"),
-                (pattern_end, "end_time"),
-            ]:
-                m = pattern.match(key)
-                if m:
-                    staff_id = int(m.group(1))
-                    day = int(m.group(2))
-                    result_data.setdefault(staff_id, {}).setdefault(day, {})[field] = value.strip()
+        if action == "save":
+            try:
+                pattern_start = re.compile(r"result_start\[(\d+)\]\[(\d+)\]")
+                pattern_end = re.compile(r"result_end\[(\d+)\]\[(\d+)\]")
 
-        # 削除されたシフトを特定し、不採用履歴を記録
-        for (staff_id, day, start_time, end_time), result in existing_shifts.items():
-            if staff_id not in result_data or day not in result_data[staff_id]:
-                # シフトが削除された場合
-                rejection = StaffRejectionHistory(
-                    staff_id=staff_id,
-                    date=datetime(year, month, day).date(),
-                    total_requests=1,
-                    rejected_count=1
-                )
-                db.add(rejection)
-                db.delete(result)
+                # 既存のシフト結果を取得（store_id、year、monthでフィルタリング）
+                existing_results = db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).all()
 
-        # 新しいシフトを保存
-        for staff_id, days in result_data.items():
-            for day, data in days.items():
-                start_time = data.get("start_time")
-                end_time = data.get("end_time")
-                
-                if not start_time or not end_time:
-                    continue
+                # 既存のシフトを削除（store_id、year、monthでフィルタリング）
+                db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).delete(synchronize_session=False)
+                db.flush()
 
-                existing = db.query(Shiftresult).filter_by(
-                    staff_id=staff_id,
-                    store_id=store_id,
-                    year=year,
-                    month=month,
-                    day=day
-                ).first()
+                # 新しいシフトデータを処理
+                new_shifts = {}
+                for key, value in form.items():
+                    for pattern, field in [
+                        (pattern_start, "start_time"),
+                        (pattern_end, "end_time"),
+                    ]:
+                        m = pattern.match(key)
+                        if m and value.strip():
+                            try:
+                                staff_id = int(m.group(1))
+                                day = int(m.group(2))
+                                if staff_id in store_staff_ids:  # 店舗のスタッフのみ処理
+                                    time_value = int(value.strip())
+                                    if staff_id not in new_shifts:
+                                        new_shifts[staff_id] = {}
+                                    if day not in new_shifts[staff_id]:
+                                        new_shifts[staff_id][day] = {}
+                                    new_shifts[staff_id][day][field] = time_value
+                            except ValueError:
+                                continue
 
-                if existing:
-                    existing.start_time = start_time
-                    existing.end_time = end_time
-                else:
-                    new_record = Shiftresult(
-                        staff_id=staff_id,
-                        store_id=store_id,
-                        year=year,
-                        month=month,
-                        day=day,
-                        start_time=start_time,
-                        end_time=end_time
-                    )
-                    db.add(new_record)
+                # データベースの更新
+                for staff_id, days in new_shifts.items():
+                    if staff_id in store_staff_ids:  # 店舗のスタッフのみ処理
+                        for day, data in days.items():
+                            start_time = data.get("start_time")
+                            end_time = data.get("end_time")
+                            
+                            if not all([start_time, end_time]) or start_time >= end_time:
+                                continue
 
-        db.commit()
+                            # 新しいシフトを作成
+                            new_shift = Shift(
+                                staff_id=staff_id,
+                                year=year,
+                                month=month,
+                                date=day,
+                                start_time=start_time,
+                                end_time=end_time
+                            )
+                            db.add(new_shift)
+                            db.flush()  # IDを取得するためにflush
 
-        params = {
-            "year": year,
-            "month": month,
-            "store_id": store_id,
-            "message": f"{year}年{month}月の仮シフトを一時保存しました。"
-        }
-        redirect_url = f"/shift/temp_result?{urlencode(params)}"
-        return RedirectResponse(url=redirect_url, status_code=303)
+                            # シフト結果を追加
+                            new_result = Shiftresult(
+                                staff_id=staff_id,
+                                year=year,
+                                month=month,
+                                day=day,
+                                start_time=start_time,
+                                end_time=end_time,
+                                shift_id=new_shift.id
+                            )
+                            db.add(new_result)
 
-    elif action == "publish":
-        # 既存の実装を維持
-        shift_results = db.query(Shiftresult).filter_by(
-            year=year, month=month, store_id=store_id
-        ).all()
+                db.commit()
+                context.update({
+                    "request": request,
+                    "message": "シフト結果が保存されました。"
+                })
+                return templates.TemplateResponse("generated.html", context)
 
-        for result in shift_results:
-            existing_shift = db.query(Shift).filter_by(
-                staff_id=result.staff_id,
-                store_id=store_id,
-                year=year,
-                month=month,
-                day=result.day
-            ).first()
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(status_code=500, detail=f"シフト結果の保存に失敗しました: {str(e)}")
 
-            if existing_shift:
-                existing_shift.start_time = result.start_time
-                existing_shift.end_time = result.end_time
-            else:
-                new_shift = Shift(
-                    staff_id=result.staff_id,
-                    store_id=store_id,
-                    year=year,
-                    month=month,
-                    day=result.day,
-                    start_time=result.start_time,
-                    end_time=result.end_time
-                )
-                db.add(new_shift)
+        else:
+            raise HTTPException(status_code=400, detail="無効なアクションです。")
 
-        db.commit()
-
-        context = get_common_context(request)
+    except HTTPException as e:
         context.update({
-            "message": f"{year}年{month}月のシフトを公開しました。"
+            "request": request,
+            "message": f"エラーが発生しました: {e.detail}"
+        })
+        return templates.TemplateResponse("published.html", context)
+    except Exception as e:
+        context.update({
+            "request": request,
+            "message": f"予期せぬエラーが発生しました: {str(e)}"
         })
         return templates.TemplateResponse("published.html", context)
 
@@ -1044,9 +1300,12 @@ async def shift_other_store(
 
     staff_shifts = {s.id: {} for s in staff_list}
     for r in shift_results:
-        start_str = r.start_time
-        end_str = "L" if r.end_time == selected_store.close_hours else r.end_time
-        display = f"{start_str}〜{end_str}"
+        if r.start_time == selected_store.open_hours and r.end_time == selected_store.close_hours:
+            display = "O"
+        elif r.end_time == selected_store.close_hours:
+            display = f"{r.start_time} ～ L"
+        else:
+            display = f"{r.start_time} ～ {r.end_time}"
         staff_shifts[r.staff_id][r.day] = {
             "status": display
         }
@@ -1152,6 +1411,8 @@ async def edit_shift(
         # 新規シフトを追加
         new_shift = Shift(
             staff_id=staff_id,
+            year=year,
+            month=month,
             date=day,
             start_time=start_time,
             end_time=end_time

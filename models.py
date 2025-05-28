@@ -63,6 +63,8 @@ class Shift(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     staff_id = Column(Integer, ForeignKey('staffs.id'))
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
     date = Column(Integer, nullable=False)
     start_time = Column(Integer, nullable=False)
     end_time = Column(Integer, nullable=False)

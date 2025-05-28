@@ -7,7 +7,7 @@
   <div class="calendar-container">
     <h2>シフト</h2>
     <div class="select-year-month" style="display: flex; justify-content: flex-start; align-items: center; gap: 0.5em; margin-bottom: 1em;">
-      <form method="get" action="/shift_request/overview" style="display: flex; align-items: center; gap: 0.5em; margin: 0;">
+      <form method="get" action="/home" style="display: flex; align-items: center; gap: 0.5em; margin: 0;">
         <select name="year">
           {% for y in years %}
             <option value="{{ y }}" {% if y == selected_year %}selected{% endif %}>{{ y }}</option>
@@ -46,7 +46,7 @@
             {% for staff in staffs %}
             <td class="{{ day.style_class }}">
               {% if staff_shifts[staff.id][day.day] %}
-                <span>{{ staff_shifts[staff.id][day.day].start }} - {{ staff_shifts[staff.id][day.day].end }}</span>
+                <span>{{ staff_shifts[staff.id][day.day].display }}</span>
               {% endif %}
             </td>
             {% endfor %}

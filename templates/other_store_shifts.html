@@ -67,7 +67,7 @@
             <div>
               {% set shifts = staff_shifts.get(staff.id, {}).get(day.day, []) %}
               {% if shifts %}
-                {{ shifts | join(", ") }}時
+                {{ shifts.status }}
               {% else %}
                 -
               {% endif %}
