@@ -1231,6 +1231,7 @@ def create_shift(
     # シフトを生成
     from .shift_generator import generate_shift_results_with_ortools
     results = generate_shift_results_with_ortools(
+        db=db,
         store=store,
         employees=employees,
         staffs=staffs,
@@ -1240,11 +1241,5 @@ def create_shift(
         year=year,
         month=month
     )
-    
-    # 結果を保存
-    if results:
-        for r in results:
-            db.add(r)
-        db.commit()
     
     return results

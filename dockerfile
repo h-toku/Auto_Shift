@@ -32,4 +32,4 @@ COPY wait-for-db.sh /wait-for-db.sh
 RUN chmod +x /wait-for-db.sh
 
 # ENTRYPOINT により、MySQL が準備できるまで待機し、その後アプリケーションを起動
-ENTRYPOINT ["/wait-for-db.sh", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "6060"]
+ENTRYPOINT ["/wait-for-db.sh", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "6060", "--reload"]
