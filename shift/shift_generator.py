@@ -90,23 +90,40 @@ def generate_shift_results_with_ortools(
                 continue
                 
             if req.status == "O":  # 終日勤務の場合
-                start_time = store.open_hours  # 店舗の営業開始時間
-                end_time = store.close_hours   # 店舗の営業終了時間
+                # 店舗の営業時間を使用
+                start_time = store.open_hours  # 店舗の営業開始時間（5時）
+                end_time = store.close_hours   # 店舗の営業終了時間（12時）
                 print(f"  {day}日: 終日勤務 ({start_time}時～{end_time}時)")
                 
-                # 勤務時間を記録（営業時間内の各時間帯）
-                for hour in range(start_time, end_time):
-                    employee_shifts.append((employee.id, day, hour))
-                    results.append(
-                        Shiftresult(
-                            staff_id=employee.id,
-                            year=year,
-                            month=month,
-                            day=day,
-                            start_time=hour,
-                            end_time=hour + 1
-                        )
+                # 勤務時間を記録（開始時間と終了時間のみ）
+                employee_shifts.append((employee.id, day, start_time))  # ピーク時間の計算用
+                results.append(
+                    Shiftresult(
+                        staff_id=employee.id,
+                        year=year,
+                        month=month,
+                        day=day,
+                        start_time=start_time,
+                        end_time=end_time
                     )
+                )
+            elif req.status == "time":  # 時間指定の場合
+                start_time = req.start_time
+                end_time = req.end_time
+                print(f"  {day}日: 時間指定 ({start_time}時～{end_time}時)")
+                
+                # 勤務時間を記録（開始時間と終了時間のみ）
+                employee_shifts.append((employee.id, day, start_time))  # ピーク時間の計算用
+                results.append(
+                    Shiftresult(
+                        staff_id=employee.id,
+                        year=year,
+                        month=month,
+                        day=day,
+                        start_time=start_time,
+                        end_time=end_time
+                    )
+                )
     
     print(f"\n社員シフトの総時間数: {len(employee_shifts)}時間")
     
@@ -118,39 +135,15 @@ def generate_shift_results_with_ortools(
         year, month, last_day, employee_shifts, valid_requests
     )
     
-    # 採用されたスタッフのシフトを登録
-    for day, staff_list in selected_staff_by_day.items():
-        for staff_id in staff_list:
-            req = valid_requests.get((staff_id, day))
-            if not req:
-                continue
-            
-            # 採用されたスタッフのシフトを希望通りに登録
-            if req.status == "O":  # 終日勤務の場合
-                start_time = store.open_hours  # 店舗の営業開始時間
-                end_time = store.close_hours   # 店舗の営業終了時間
-                print(f"  {day}日: スタッフID {staff_id} 終日勤務 "
-                      f"({start_time}時～{end_time}時)")
-            elif req.status == "time":  # 時間指定の場合
-                start_time = req.start_time
-                end_time = req.end_time
-                print(f"  {day}日: スタッフID {staff_id} 時間指定 "
-                      f"({start_time}時～{end_time}時)")
-            else:
-                continue
-            
-            # 勤務時間を記録
-            for hour in range(start_time, end_time):
-                results.append(
-                    Shiftresult(
-                        staff_id=staff_id,
-                        year=year,
-                        month=month,
-                        day=day,
-                        start_time=hour,
-                        end_time=hour + 1
-                    )
-                )
+    # バイトスタッフのシフト時間を調整
+    print("\n5. バイトスタッフのシフト時間調整")
+    adjusted_shifts, rejection_times = adjust_staff_shifts(
+        store, selected_staff_by_day, valid_requests,
+        employee_shifts, year, month, last_day, holidays, staffs
+    )
+    
+    # 結果を結合（社員のシフト + 調整後のバイトスタッフのシフト）
+    results.extend(adjusted_shifts)
     
     print(f"\n生成されたシフト数: {len(results)}件")
     
@@ -558,3 +551,243 @@ def optimize_required_staff(
                   f"誤差 {error}日")
     
     return required_staff, selected_staff_by_day 
+
+def adjust_staff_shifts(
+    store, selected_staff_by_day, valid_requests, employee_shifts,
+    year, month, last_day, holidays, staffs
+):
+    """バイトスタッフのシフト時間を調整する
+    
+    Args:
+        store: 店舗情報
+        selected_staff_by_day: {day: [staff_id]} 採用されたスタッフ
+        valid_requests: 有効なシフト希望
+        employee_shifts: 社員のシフトリスト
+        year: 年
+        month: 月
+        last_day: 月末日
+        holidays: 休業日リスト
+        staffs: スタッフリスト（未成年バイトの判定用）
+    
+    Returns:
+        adjusted_shifts: 調整後のシフトリスト
+        rejection_times: {staff_id: (早出時間, 早退時間)} 不採用時間
+    """
+    print("\n=== バイトスタッフのシフト時間調整 ===")
+    adjusted_shifts = []
+    rejection_times = defaultdict(lambda: [0, 0])  # (早出時間, 早退時間)
+    
+    # スタッフIDから未成年バイトかどうかを判定する辞書を作成
+    is_minor = {staff.id: staff.employment_type == '未成年バイト' 
+                for staff in staffs}
+    
+    for day in range(1, last_day + 1):
+        staff_list = selected_staff_by_day.get(day, [])
+        if not staff_list:
+            continue
+        
+        # その日の日種を取得
+        day_type = get_day_type(year, month, day, holidays)
+        skill_req = next(
+            (r for r in store.default_skill_requirements 
+             if r.day_type == day_type),
+            None
+        )
+        if not skill_req:
+            continue
+            
+        # その日の社員の勤務を確認
+        employee_open = sum(
+            1 for e_id, d, h in employee_shifts
+            if d == day and h == store.open_hours
+        )
+        employee_close = sum(
+            1 for e_id, d, h in employee_shifts
+            if d == day and h == store.close_hours - 1
+        )
+        
+        # バイトの必要人数を計算
+        open_staff_needed = max(0, skill_req.open_people - employee_open)
+        close_staff_needed = max(0, skill_req.close_people - employee_close)
+        
+        print(f"\n{day}日 ({day_type}):")
+        print(f"オープン必要人数: {open_staff_needed}人 "
+              f"(社員 {employee_open}人, 必要 {skill_req.open_people}人)")
+        print(f"クローズ必要人数: {close_staff_needed}人 "
+              f"(社員 {employee_close}人, 必要 {skill_req.close_people}人)")
+        
+        # スタッフを時間帯ごとに分類
+        open_staff = []  # オープン時間帯のスタッフ
+        close_staff = []  # クローズ時間帯のスタッフ
+        middle_staff = []  # 中間時間帯のスタッフ
+        
+        for staff_id in staff_list:
+            req = valid_requests.get((staff_id, day))
+            if not req or req.status == "X":
+                continue
+                
+            if req.status == "O":
+                # 終日勤務の場合は希望時間を店舗の営業時間に設定
+                req_start = store.open_hours
+                req_end = store.close_hours
+            else:  # time
+                req_start = req.start_time
+                req_end = req.end_time
+            
+            # 未成年バイトの場合は終了時間を10時までに制限
+            if is_minor[staff_id]:
+                req_end = min(req_end, 10)
+            
+            staff_info = {
+                'id': staff_id,
+                'is_minor': is_minor[staff_id],
+                'req_start': req_start,
+                'req_end': req_end,
+                'rejection_time': [0, 0]  # [早出時間, 早退時間]
+            }
+            
+            # 時間帯ごとに分類（オープンとクローズを優先）
+            if req_start <= store.open_hours + 1:
+                open_staff.append(staff_info)
+            elif req_end >= store.close_hours - 1 and not is_minor[staff_id]:
+                close_staff.append(staff_info)
+            else:
+                middle_staff.append(staff_info)
+        
+        # オープン時間帯の調整（最優先）
+        open_staff.sort(
+            key=lambda x: (
+                x['req_start'] == store.open_hours,  # オープン時間開始を優先
+                -x['req_end']  # 終了時間が遅い順
+            ),
+            reverse=True
+        )
+        
+        for staff_info in open_staff[:open_staff_needed]:
+            # オープン時間帯のシフトを設定
+            if staff_info['req_end'] >= store.open_hours + 4:
+                # 4時間以上確保できる場合
+                staff_info['start_time'] = store.open_hours
+                staff_info['end_time'] = min(
+                    staff_info['req_end'],
+                    staff_info['start_time'] + 5
+                )
+            else:
+                # 4時間確保できない場合は、希望時間内で最長のシフトを設定
+                staff_info['start_time'] = staff_info['req_start']
+                staff_info['end_time'] = staff_info['req_end']
+            
+            # 不採用時間を記録
+            if staff_info['end_time'] < staff_info['req_end']:
+                staff_info['rejection_time'][1] = (
+                    staff_info['req_end'] - staff_info['end_time']
+                )
+        
+        # クローズ時間帯の調整（最優先）
+        close_staff.sort(
+            key=lambda x: (
+                x['req_end'] == store.close_hours,  # クローズ時間終了を優先
+                x['req_start']  # 開始時間が早い順
+            ),
+            reverse=True
+        )
+        
+        for staff_info in close_staff[:close_staff_needed]:
+            # クローズ時間帯のシフトを設定
+            if staff_info['req_end'] - staff_info['req_start'] >= 4:
+                # 4時間以上確保できる場合
+                staff_info['end_time'] = store.close_hours
+                staff_info['start_time'] = max(
+                    staff_info['req_start'],
+                    staff_info['end_time'] - 5
+                )
+            else:
+                # 4時間確保できない場合は、希望時間内で最長のシフトを設定
+                staff_info['start_time'] = staff_info['req_start']
+                staff_info['end_time'] = staff_info['req_end']
+            
+            # 不採用時間を記録
+            if staff_info['start_time'] > staff_info['req_start']:
+                staff_info['rejection_time'][0] = (
+                    staff_info['start_time'] - staff_info['req_start']
+                )
+        
+        # 中間時間帯の調整
+        remaining_staff = (
+            open_staff[open_staff_needed:] +
+            close_staff[close_staff_needed:] +
+            middle_staff
+        )
+        
+        for staff_info in remaining_staff:
+            # 希望時間内で最長のシフトを設定
+            available_hours = staff_info['req_end'] - staff_info['req_start']
+            if available_hours >= 5:
+                # 5時間以上確保できる場合は中央に配置
+                center = (staff_info['req_start'] + staff_info['req_end']) // 2
+                staff_info['start_time'] = max(
+                    staff_info['req_start'],
+                    center - 2
+                )
+                staff_info['end_time'] = min(
+                    staff_info['req_end'],
+                    staff_info['start_time'] + 5
+                )
+            elif available_hours >= 4:
+                # 4時間以上確保できる場合は希望時間をそのまま使用
+                staff_info['start_time'] = staff_info['req_start']
+                staff_info['end_time'] = staff_info['req_end']
+            else:
+                # 4時間未満の場合は希望時間をそのまま使用
+                staff_info['start_time'] = staff_info['req_start']
+                staff_info['end_time'] = staff_info['req_end']
+            
+            # 未成年バイトの場合は終了時間を10時までに制限
+            if staff_info['is_minor']:
+                staff_info['end_time'] = min(staff_info['end_time'], 10)
+                # 4時間確保できない場合は開始時間を調整
+                if staff_info['end_time'] - staff_info['start_time'] < 4:
+                    staff_info['start_time'] = staff_info['end_time'] - 4
+        
+        # シフトを記録
+        for staff_info in open_staff + close_staff + remaining_staff:
+            if 'start_time' not in staff_info:
+                continue
+                
+            adjusted_shifts.append(
+                Shiftresult(
+                    staff_id=staff_info['id'],
+                    year=year,
+                    month=month,
+                    day=day,
+                    start_time=staff_info['start_time'],
+                    end_time=staff_info['end_time']
+                )
+            )
+            
+            # 不採用時間を集計
+            staff_id = staff_info['id']
+            rejection_times[staff_id][0] += staff_info['rejection_time'][0]
+            rejection_times[staff_id][1] += staff_info['rejection_time'][1]
+            
+            print(f"  スタッフID {staff_id} "
+                  f"({'未成年' if staff_info['is_minor'] else '一般'}): "
+                  f"{staff_info['start_time']}時～{staff_info['end_time']}時 "
+                  f"(希望: {staff_info['req_start']}時～{staff_info['req_end']}時, "
+                  f"不採用: 早出{staff_info['rejection_time'][0]}時間, "
+                  f"早退{staff_info['rejection_time'][1]}時間)")
+    
+    # 不採用時間の均等化
+    total_rejection = sum(sum(times) for times in rejection_times.values())
+    if total_rejection > 0 and len(rejection_times) > 0:
+        avg_rejection = total_rejection / len(rejection_times)
+        print(f"\n不採用時間の均等化:")
+        print(f"総不採用時間: {total_rejection}時間")
+        print(f"平均不採用時間: {avg_rejection:.1f}時間/人")
+        
+        for staff_id, times in rejection_times.items():
+            print(f"  スタッフID {staff_id}: "
+                  f"早出{times[0]}時間, 早退{times[1]}時間 "
+                  f"(合計: {sum(times)}時間)")
+    
+    return adjusted_shifts, rejection_times 
