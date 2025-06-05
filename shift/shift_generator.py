@@ -284,28 +284,32 @@ def calculate_rejection_targets(
     print("希望日数の多いグループ:")
     for staff_id, request_count in high_request_staff:
         staff = next(s for s in staffs if s.id == staff_id)
-        print(f"  スタッフID {staff_id} ({staff.employment_type}): {request_count}日")
+        print(f"  スタッフID {staff_id} ({staff.employment_type}): "
+              f"{request_count}日")
     print("希望日数の少ないグループ:")
     for staff_id, request_count in low_request_staff:
         staff = next(s for s in staffs if s.id == staff_id)
-        print(f"  スタッフID {staff_id} ({staff.employment_type}): {request_count}日")
+        print(f"  スタッフID {staff_id} ({staff.employment_type}): "
+              f"{request_count}日")
     
     if total_staff_requests > 0:
         # 各スタッフの不採用目安を計算
-        for staff_id, request_count in high_request_staff + low_request_staff:
+        for staff_id, request_count in sorted_staff:
             # 各スタッフ希望率 = 各スタッフ希望数 / バイト総希望数
             request_ratio = request_count / total_staff_requests
-            # 目安不採用日数 = バイト余剰希望数 * 各スタッフ希望率
-            target_rejections = excess_staff_requests * request_ratio
             
             # 希望日数の多いグループは切り上げ、少ないグループは切り下げ
             if (staff_id, request_count) in high_request_staff:
-                target_rejections = math.ceil(target_rejections)
+                # 希望日数の多いグループは、不採用率が0.08以上の場合のみ不採用
+                target_rejections = math.ceil(excess_staff_requests * request_ratio)
+                if request_ratio >= 0.08 and target_rejections < 1:
+                    target_rejections = 1
                 print(f"スタッフID {staff_id} (希望日数 {request_count}日): "
                       f"希望率 {request_ratio:.1%}, "
                       f"目安不採用日数 {target_rejections}日 (切り上げ)")
             else:
-                target_rejections = math.floor(target_rejections)
+                # 希望日数の少ないグループは、最低でも1日は不採用
+                target_rejections = max(1, math.floor(excess_staff_requests * request_ratio))
                 print(f"スタッフID {staff_id} (希望日数 {request_count}日): "
                       f"希望率 {request_ratio:.1%}, "
                       f"目安不採用日数 {target_rejections}日 (切り下げ)")
