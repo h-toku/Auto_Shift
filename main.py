@@ -23,7 +23,7 @@ from shift.shift_creator import create_shift, get_holidays
 import re
 from typing import Optional, Dict, List
 from urllib.parse import urlencode
-
+import os
 
 dotenv.load_dotenv()
 
