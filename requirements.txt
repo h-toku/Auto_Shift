@@ -15,3 +15,4 @@ jpholiday
 alembic
 pulp
 ortools
+cryptography
