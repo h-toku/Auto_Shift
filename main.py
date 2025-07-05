@@ -1092,7 +1092,137 @@ async def save_shift_temp_result(
 
             except Exception as e:
                 db.rollback()
-                raise HTTPException(status_code=500, detail=f"シフト結果の保存に失敗しました: {str(e)}")
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"シフト結果の保存に失敗しました: {str(e)}"
+                )
+
+        elif action == "publish":
+            # まずsaveの処理を実行
+            try:
+                pattern_start = re.compile(r"result_start\[(\d+)\]\[(\d+)\]")
+                pattern_end = re.compile(r"result_end\[(\d+)\]\[(\d+)\]")
+
+                # 既存のシフト結果を取得（store_id、year、monthでフィルタリング）
+                existing_results = db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).all()
+
+                # 既存のシフトを削除（store_id、year、monthでフィルタリング）
+                db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).delete(synchronize_session=False)
+                db.flush()
+
+                # 新しいシフトデータを処理
+                new_shifts = {}
+                for key, value in form.items():
+                    for pattern, field in [
+                        (pattern_start, "start_time"),
+                        (pattern_end, "end_time"),
+                    ]:
+                        m = pattern.match(key)
+                        if m and value.strip():
+                            try:
+                                staff_id = int(m.group(1))
+                                day = int(m.group(2))
+                                if staff_id in store_staff_ids:  # 店舗のスタッフのみ処理
+                                    time_value = int(value.strip())
+                                    if staff_id not in new_shifts:
+                                        new_shifts[staff_id] = {}
+                                    if day not in new_shifts[staff_id]:
+                                        new_shifts[staff_id][day] = {}
+                                    new_shifts[staff_id][day][field] = time_value
+                            except ValueError:
+                                continue
+
+                # データベースの更新
+                for staff_id, days in new_shifts.items():
+                    if staff_id in store_staff_ids:  # 店舗のスタッフのみ処理
+                        for day, data in days.items():
+                            start_time = data.get("start_time")
+                            end_time = data.get("end_time")
+                            
+                            if not all([start_time, end_time]) or start_time >= end_time:
+                                continue
+
+                            # 新しいシフトを作成
+                            new_shift = Shift(
+                                staff_id=staff_id,
+                                year=year,
+                                month=month,
+                                date=day,
+                                start_time=start_time,
+                                end_time=end_time
+                            )
+                            db.add(new_shift)
+                            db.flush()  # IDを取得するためにflush
+
+                            # シフト結果を追加
+                            new_result = Shiftresult(
+                                staff_id=staff_id,
+                                year=year,
+                                month=month,
+                                day=day,
+                                start_time=start_time,
+                                end_time=end_time,
+                                shift_id=new_shift.id
+                            )
+                            db.add(new_result)
+
+                # saveの処理が完了したら、ShiftresultからShiftテーブルにコピー
+                # 既存のシフト結果を取得
+                shift_results = db.query(Shiftresult).filter(
+                    Shiftresult.year == year,
+                    Shiftresult.month == month,
+                    Shiftresult.staff_id.in_(store_staff_ids)
+                ).all()
+
+                # シフト結果をShiftテーブルに反映
+                for result in shift_results:
+                    # 既存のシフトを確認
+                    existing_shift = db.query(Shift).filter(
+                        Shift.staff_id == result.staff_id,
+                        Shift.year == year,
+                        Shift.month == month,
+                        Shift.date == result.day
+                    ).first()
+
+                    if existing_shift:
+                        # 既存のシフトを更新
+                        existing_shift.start_time = result.start_time
+                        existing_shift.end_time = result.end_time
+                    else:
+                        # 新しいシフトを作成
+                        new_shift = Shift(
+                            staff_id=result.staff_id,
+                            year=year,
+                            month=month,
+                            date=result.day,
+                            start_time=result.start_time,
+                            end_time=result.end_time
+                        )
+                        db.add(new_shift)
+                        db.flush()  # IDを取得するためにflush
+                        result.shift_id = new_shift.id
+
+                db.commit()
+                context.update({
+                    "request": request,
+                    "message": "シフトが公開されました。"
+                })
+                return templates.TemplateResponse("published.html", context)
+
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=500, 
+                    detail=f"シフトの公開に失敗しました: {str(e)}"
+                )
 
         else:
             raise HTTPException(status_code=400, detail="無効なアクションです。")
